@@ -1,0 +1,13 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ subject.name }} | Practice{% endblock %}
+
+{% block content %}
+
+<h2>{{ subject.name }}</h2>
+
+<p>Category: {{ subject.category.name }}</p>
+
+<p>Select a topic to begin practicing.</p>
+
+{% endblock %}

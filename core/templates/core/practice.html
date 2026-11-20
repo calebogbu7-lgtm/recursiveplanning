@@ -1,0 +1,44 @@
+{% extends "core/base.html" %}
+
+{% block title %}Practice | JAMB Platform{% endblock %}
+
+{% block content %}
+
+<section class="practice-page">
+
+    <div class="practice-header">
+        <h1>Practice CBT</h1>
+        <p>Choose a subject to begin practicing.</p>
+    </div>
+
+    {% regroup subjects by category as category_list %}
+
+    {% for category in category_list %}
+        <section class="subject-section">
+
+            <div class="section-heading">
+                <h2>{{ category.grouper.name }}</h2>
+            </div>
+
+            <div class="subject-grid">
+
+                {% for subject in category.list %}
+                    <a
+                        href="{% url 'subject_detail' subject.id %}"
+                        class="subject-card"
+                    >
+                        <div class="subject-card-content">
+                            <h3>{{ subject.name }}</h3>
+                            <span>Start Practice →</span>
+                        </div>
+                    </a>
+                {% endfor %}
+
+            </div>
+
+        </section>
+    {% endfor %}
+
+</section>
+
+{% endblock %}
