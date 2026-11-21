@@ -1,0 +1,45 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ subtopic.name }} | Practice{% endblock %}
+
+{% block content %}
+
+<section class="subtopic-page">
+
+    <div class="subtopic-header">
+        <h1>{{ subtopic.name }}</h1>
+        <p>Practice questions for this subtopic.</p>
+    </div>
+
+    <div class="question-list">
+
+        {% for question in questions %}
+
+            <article class="question-card">
+
+                <h2>Question {{ forloop.counter }}</h2>
+
+                <p>{{ question.text }}</p>
+
+                <div class="options">
+
+                    <p>A. {{ question.option_a }}</p>
+                    <p>B. {{ question.option_b }}</p>
+                    <p>C. {{ question.option_c }}</p>
+                    <p>D. {{ question.option_d }}</p>
+
+                </div>
+
+            </article>
+
+        {% empty %}
+
+            <p>No published questions are available for this subtopic yet.</p>
+
+        {% endfor %}
+
+    </div>
+
+</section>
+
+{% endblock %}
