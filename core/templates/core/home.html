@@ -1,13 +1,19 @@
 {% extends "core/base.html" %}
 
-{% block title %}Home | JAMB Platform{% endblock %}
+{% block title %}
+Home
+{% endblock %}
 
 {% block content %}
 
-<h2>Prepare. Practice. Improve.</h2>
+<h2>JAMB Practice Platform</h2>
 
-<p>Practice JAMB questions, take CBT examinations, and track your progress.</p>
+<p>
+    Practice questions organized by subject, syllabus, topic and subtopic.
+</p>
 
-<button>Start Practicing</button>
+<a href="{% url 'practice' %}">
+    Start Practice
+</a>
 
 {% endblock %}

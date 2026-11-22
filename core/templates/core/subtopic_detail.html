@@ -1,45 +1,212 @@
 {% extends "core/base.html" %}
 
-{% block title %}{{ subtopic.name }} | Practice{% endblock %}
+{% block title %}
+{{ subtopic.name }} Practice
+{% endblock %}
 
 {% block content %}
 
-<section class="subtopic-page">
+<h2>{{ subtopic.name }}</h2>
 
-    <div class="subtopic-header">
-        <h1>{{ subtopic.name }}</h1>
-        <p>Practice questions for this subtopic.</p>
-    </div>
+{% if not questions %}
 
-    <div class="question-list">
+    <p>
+        No published questions are available for this subtopic yet.
+    </p>
 
-        {% for question in questions %}
+{% else %}
 
-            <article class="question-card">
+    {% if show_submit_confirmation %}
 
-                <h2>Question {{ forloop.counter }}</h2>
+        <h3>Submit Practice?</h3>
 
-                <p>{{ question.text }}</p>
+        <p>
+            You have {{ unanswered_count }} unanswered question{{ unanswered_count|pluralize }}.
+        </p>
 
-                <div class="options">
+        <p>
+            Are you sure you want to submit?
+        </p>
 
-                    <p>A. {{ question.option_a }}</p>
-                    <p>B. {{ question.option_b }}</p>
-                    <p>C. {{ question.option_c }}</p>
-                    <p>D. {{ question.option_d }}</p>
+        <form method="post">
+            {% csrf_token %}
 
-                </div>
+            <input type="hidden" name="action" value="submit">
+            <input type="hidden" name="confirm" value="yes">
 
-            </article>
+            <button type="submit">
+                Yes, Submit
+            </button>
+        </form>
 
-        {% empty %}
+        <form method="post">
+            {% csrf_token %}
 
-            <p>No published questions are available for this subtopic yet.</p>
+            <input type="hidden" name="action" value="answer">
 
-        {% endfor %}
+            <input
+                type="hidden"
+                name="current_index"
+                value="{{ current_index }}"
+            >
 
-    </div>
+            <input
+                type="hidden"
+                name="question_id"
+                value="{{ current_question.id }}"
+            >
 
-</section>
+            <input
+                type="hidden"
+                name="navigation"
+                value=""
+            >
+
+            <button type="submit">
+                No, Continue
+            </button>
+        </form>
+
+    {% elif not practice_started %}
+
+        <p>
+            There are {{ questions|length }} published question{{ questions|length|pluralize }}.
+        </p>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <input
+                type="hidden"
+                name="action"
+                value="start"
+            >
+
+            <button type="submit">
+                Start Practice
+            </button>
+        </form>
+
+    {% else %}
+
+        <p>
+            Question {{ current_index|add:"1" }}
+            of
+            {{ total_questions }}
+        </p>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <input
+                type="hidden"
+                name="action"
+                value="answer"
+            >
+
+            <input
+                type="hidden"
+                name="question_id"
+                value="{{ current_question.id }}"
+            >
+
+            <input
+                type="hidden"
+                name="current_index"
+                value="{{ current_index }}"
+            >
+
+            <h3>
+                {{ current_question.text }}
+            </h3>
+
+            <p>
+                <label>
+                    <input
+                        type="radio"
+                        name="answer"
+                        value="A"
+                        {% if selected_answer == "A" %}checked{% endif %}
+                    >
+                    A. {{ current_question.option_a }}
+                </label>
+            </p>
+
+            <p>
+                <label>
+                    <input
+                        type="radio"
+                        name="answer"
+                        value="B"
+                        {% if selected_answer == "B" %}checked{% endif %}
+                    >
+                    B. {{ current_question.option_b }}
+                </label>
+            </p>
+
+            <p>
+                <label>
+                    <input
+                        type="radio"
+                        name="answer"
+                        value="C"
+                        {% if selected_answer == "C" %}checked{% endif %}
+                    >
+                    C. {{ current_question.option_c }}
+                </label>
+            </p>
+
+            <p>
+                <label>
+                    <input
+                        type="radio"
+                        name="answer"
+                        value="D"
+                        {% if selected_answer == "D" %}checked{% endif %}
+                    >
+                    D. {{ current_question.option_d }}
+                </label>
+            </p>
+
+            {% if current_index > 0 %}
+                <button
+                    type="submit"
+                    name="navigation"
+                    value="previous"
+                >
+                    Previous
+                </button>
+            {% endif %}
+
+            {% if current_index < total_questions|add:"-1" %}
+                <button
+                    type="submit"
+                    name="navigation"
+                    value="next"
+                >
+                    Next
+                </button>
+            {% endif %}
+        </form>
+
+        <hr>
+
+        <form method="post">
+            {% csrf_token %}
+
+            <input
+                type="hidden"
+                name="action"
+                value="submit"
+            >
+
+            <button type="submit">
+                Submit Practice
+            </button>
+        </form>
+
+    {% endif %}
+
+{% endif %}
 
 {% endblock %}

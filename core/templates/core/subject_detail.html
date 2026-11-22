@@ -1,88 +1,59 @@
 {% extends "core/base.html" %}
 
-{% block title %}{{ subtopic.name }} | Practice{% endblock %}
+{% block title %}
+{{ subject.name }}
+{% endblock %}
 
 {% block content %}
 
-<section class="subtopic-page">
+<h2>{{ subject.name }}</h2>
 
-    <div class="subtopic-header">
-        <h1>{{ subtopic.name }}</h1>
-        <p>Practice questions for this subtopic.</p>
-    </div>
+{% if syllabuses %}
 
-    <div class="question-list">
+    {% for syllabus in syllabuses %}
 
-        {% for question in questions %}
+        <h3>{{ syllabus.year }} Syllabus</h3>
 
-            <article class="question-card">
+        {% if syllabus.topics %}
 
-                <h2>Question {{ forloop.counter }}</h2>
+            <ul>
+                {% for topic in syllabus.topics.all %}
 
-                <p>{{ question.text }}</p>
+                    <li>
+                        <a href="{% url 'topic_detail' topic.id %}">
+                            {{ topic.name }}
+                        </a>
 
-                <form method="post">
+                        {% if topic.subtopics.all %}
+                            <ul>
+                                {% for subtopic in topic.subtopics.all %}
+                                    <li>
+                                        {{ subtopic.name }}
+                                        —
+                                        <a href="{% url 'subtopic_detail' subtopic.id %}">
+                                            Practice
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </li>
 
-                    {% csrf_token %}
+                {% endfor %}
+            </ul>
 
-                    <input
-                        type="hidden"
-                        name="question_id"
-                        value="{{ question.id }}"
-                    >
+        {% else %}
 
-                    <div class="options">
+            <p>No topics available.</p>
 
-                        <label>
-                            <input type="radio" name="answer" value="A">
-                            A. {{ question.option_a }}
-                        </label>
+        {% endif %}
 
-                        <label>
-                            <input type="radio" name="answer" value="B">
-                            B. {{ question.option_b }}
-                        </label>
+    {% endfor %}
 
-                        <label>
-                            <input type="radio" name="answer" value="C">
-                            C. {{ question.option_c }}
-                        </label>
+{% else %}
 
-                        <label>
-                            <input type="radio" name="answer" value="D">
-                            D. {{ question.option_d }}
-                        </label>
+<p>No syllabus available for this subject.</p>
 
-                    </div>
-
-                    <button type="submit">
-                        Submit Answer
-                    </button>
-
-                </form>
-
-                {% if result and result.question_id == question.id %}
-
-                    {% if result.correct %}
-                        <p>Correct!</p>
-                    {% else %}
-                        <p>Incorrect.</p>
-                    {% endif %}
-
-                    <p>{{ result.explanation }}</p>
-
-                {% endif %}
-
-            </article>
-
-        {% empty %}
-
-            <p>No published questions are available for this subtopic yet.</p>
-
-        {% endfor %}
-
-    </div>
-
-</section>
+{% endif %}
 
 {% endblock %}

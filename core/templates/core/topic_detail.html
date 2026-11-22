@@ -1,36 +1,38 @@
 {% extends "core/base.html" %}
 
-{% block title %}{{ topic.name }} | Practice{% endblock %}
+{% block title %}
+{{ topic.name }}
+{% endblock %}
 
 {% block content %}
 
-<section class="topic-page">
+<h2>{{ topic.name }}</h2>
 
-    <div class="topic-header">
-        <h1>{{ topic.name }}</h1>
-        <p>Choose a subtopic to begin practicing.</p>
-    </div>
+<p>
+    {{ topic.syllabus_version.subject.name }}
+    —
+    {{ topic.syllabus_version.year }} Syllabus
+</p>
 
-    <div class="subtopic-grid">
+{% if topic.subtopics.all %}
 
-        {% for subtopic in topic.subtopics.all %}
+<ul>
+    {% for subtopic in topic.subtopics.all %}
+        <li>
+            {{ subtopic.name }}
 
-            <a
-                href="{% url 'subtopic_detail' subtopic.id %}"
-                class="subtopic-card"
-            >
-                <h2>{{ subtopic.name }}</h2>
-                <span>Start Practice →</span>
+            —
+            <a href="{% url 'subtopic_detail' subtopic.id %}">
+                Practice
             </a>
+        </li>
+    {% endfor %}
+</ul>
 
-        {% empty %}
+{% else %}
 
-            <p>No subtopics are available for this topic yet.</p>
+<p>No subtopics available.</p>
 
-        {% endfor %}
-
-    </div>
-
-</section>
+{% endif %}
 
 {% endblock %}
