@@ -1,10 +1,102 @@
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import Question, Subject, Subtopic, Topic
+from .forms import StudentRegistrationForm
+from .models import (
+    Question,
+    StudentProfile,
+    Subject,
+    Subtopic,
+    Topic,
+)
 
 
 def home(request):
     return render(request, "core/home.html")
+
+
+def register(request):
+    if request.user.is_authenticated:
+        return redirect("student_dashboard")
+
+    if request.method == "POST":
+        form = StudentRegistrationForm(request.POST)
+
+        if form.is_valid():
+            form.save()
+
+            messages.success(
+                request,
+                "Your account has been created successfully. Please log in."
+            )
+
+            return redirect("student_login")
+
+    else:
+        form = StudentRegistrationForm()
+
+    return render(
+        request,
+        "core/register.html",
+        {
+            "form": form,
+        },
+    )
+
+
+def student_login(request):
+    if request.user.is_authenticated:
+        return redirect("student_dashboard")
+
+    if request.method == "POST":
+        username = request.POST.get("username")
+        password = request.POST.get("password")
+
+        user = authenticate(
+            request,
+            username=username,
+            password=password,
+        )
+
+        if user is not None:
+            login(request, user)
+
+            return redirect("student_dashboard")
+
+        messages.error(
+            request,
+            "Invalid username or password."
+        )
+
+    return render(
+        request,
+        "core/login.html",
+    )
+
+
+def student_logout(request):
+    if request.method == "POST":
+        logout(request)
+
+    return redirect("home")
+
+
+@login_required
+def student_dashboard(request):
+    profile = get_object_or_404(
+        StudentProfile,
+        user=request.user,
+    )
+
+    return render(
+        request,
+        "core/dashboard.html",
+        {
+            "profile": profile,
+        },
+    )
 
 
 def practice(request):
@@ -22,7 +114,7 @@ def practice(request):
 def subject_detail(request, subject_id):
     subject = get_object_or_404(
         Subject,
-        id=subject_id
+        id=subject_id,
     )
 
     syllabuses = subject.syllabus_versions.prefetch_related(
@@ -42,7 +134,7 @@ def subject_detail(request, subject_id):
 def topic_detail(request, topic_id):
     topic = get_object_or_404(
         Topic,
-        id=topic_id
+        id=topic_id,
     )
 
     return render(
@@ -57,7 +149,7 @@ def topic_detail(request, topic_id):
 def subtopic_detail(request, subtopic_id):
     subtopic = get_object_or_404(
         Subtopic,
-        id=subtopic_id
+        id=subtopic_id,
     )
 
     questions = list(
@@ -86,6 +178,7 @@ def subtopic_detail(request, subtopic_id):
                 "current_index": 0,
                 "answers": {},
                 "submitted": False,
+                "started": True,
             }
 
             return redirect(
@@ -93,15 +186,14 @@ def subtopic_detail(request, subtopic_id):
                 subtopic_id=subtopic.id,
             )
 
-        if action == "answer":
-            practice_data = request.session.get(
-                session_key,
-                {
-                    "current_index": 0,
-                    "answers": {},
-                    "submitted": False,
-                },
-            )
+        if action in {"next", "previous"}:
+            practice_data = request.session.get(session_key)
+
+            if not practice_data or not practice_data.get("started"):
+                return redirect(
+                    "subtopic_detail",
+                    subtopic_id=subtopic.id,
+                )
 
             question_id = request.POST.get("question_id")
             selected_option = request.POST.get("answer")
@@ -118,12 +210,9 @@ def subtopic_detail(request, subtopic_id):
                 )
             )
 
-            navigation = request.POST.get("navigation")
-
-            if navigation == "next":
+            if action == "next":
                 current_index += 1
-
-            elif navigation == "previous":
+            else:
                 current_index -= 1
 
             current_index = max(
@@ -143,10 +232,18 @@ def subtopic_detail(request, subtopic_id):
         if action == "submit":
             practice_data = request.session.get(session_key)
 
-            if not practice_data:
+            if not practice_data or not practice_data.get("started"):
                 return redirect(
                     "subtopic_detail",
                     subtopic_id=subtopic.id,
+                )
+
+            question_id = request.POST.get("question_id")
+            selected_option = request.POST.get("answer")
+
+            if selected_option in {"A", "B", "C", "D"}:
+                practice_data["answers"][str(question_id)] = (
+                    selected_option
                 )
 
             unanswered = [
@@ -157,13 +254,31 @@ def subtopic_detail(request, subtopic_id):
             ]
 
             if unanswered and request.POST.get("confirm") != "yes":
+                request.session[session_key] = practice_data
+
                 return render(
                     request,
                     "core/subtopic_detail.html",
                     {
                         "subtopic": subtopic,
                         "questions": questions,
-                        "practice_data": practice_data,
+                        "current_question": questions[
+                            practice_data["current_index"]
+                        ],
+                        "current_index": practice_data[
+                            "current_index"
+                        ],
+                        "total_questions": len(questions),
+                        "selected_answer": practice_data[
+                            "answers"
+                        ].get(
+                            str(
+                                questions[
+                                    practice_data["current_index"]
+                                ].id
+                            )
+                        ),
+                        "practice_started": True,
                         "show_submit_confirmation": True,
                         "unanswered_count": len(unanswered),
                     },
@@ -185,14 +300,25 @@ def subtopic_detail(request, subtopic_id):
                 subtopic_id=subtopic.id,
             )
 
-    practice_data = request.session.get(
-        session_key,
-        {
-            "current_index": 0,
-            "answers": {},
-            "submitted": False,
-        },
-    )
+        if action == "continue":
+            return redirect(
+                "subtopic_detail",
+                subtopic_id=subtopic.id,
+            )
+
+    practice_data = request.session.get(session_key)
+
+    if not practice_data or not practice_data.get("started"):
+        return render(
+            request,
+            "core/subtopic_detail.html",
+            {
+                "subtopic": subtopic,
+                "questions": questions,
+                "practice_started": False,
+                "show_submit_confirmation": False,
+            },
+        )
 
     current_index = practice_data["current_index"]
 
@@ -219,7 +345,7 @@ def subtopic_detail(request, subtopic_id):
             "selected_answer": practice_data["answers"].get(
                 str(current_question.id)
             ),
-            "practice_started": session_key in request.session,
+            "practice_started": True,
             "show_submit_confirmation": False,
         },
     )

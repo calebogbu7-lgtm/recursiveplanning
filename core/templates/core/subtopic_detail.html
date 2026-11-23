@@ -14,198 +14,212 @@
         No published questions are available for this subtopic yet.
     </p>
 
+{% elif show_submit_confirmation %}
+
+    <h3>Submit Practice?</h3>
+
+    <p>
+        You have {{ unanswered_count }} unanswered question{{ unanswered_count|pluralize }}.
+    </p>
+
+    <p>
+        Are you sure you want to submit?
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <input
+            type="hidden"
+            name="action"
+            value="submit"
+        >
+
+        <input
+            type="hidden"
+            name="question_id"
+            value="{{ current_question.id }}"
+        >
+
+        <input
+            type="hidden"
+            name="answer"
+            value="{{ selected_answer }}"
+        >
+
+        <input
+            type="hidden"
+            name="confirm"
+            value="yes"
+        >
+
+        <button type="submit">
+            Yes, Submit
+        </button>
+    </form>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <input
+            type="hidden"
+            name="action"
+            value="continue"
+        >
+
+        <button type="submit">
+            No, Continue
+        </button>
+    </form>
+
+{% elif not practice_started %}
+
+    <p>
+        There are {{ questions|length }} published question{{ questions|length|pluralize }}.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <input
+            type="hidden"
+            name="action"
+            value="start"
+        >
+
+        <button type="submit">
+            Start Practice
+        </button>
+    </form>
+
 {% else %}
 
-    {% if show_submit_confirmation %}
+    <p>
+        Question {{ current_index|add:"1" }}
+        of
+        {{ total_questions }}
+    </p>
 
-        <h3>Submit Practice?</h3>
+    <form method="post">
+        {% csrf_token %}
 
-        <p>
-            You have {{ unanswered_count }} unanswered question{{ unanswered_count|pluralize }}.
-        </p>
+        <input
+            type="hidden"
+            name="question_id"
+            value="{{ current_question.id }}"
+        >
 
-        <p>
-            Are you sure you want to submit?
-        </p>
+        <input
+            type="hidden"
+            name="current_index"
+            value="{{ current_index }}"
+        >
 
-        <form method="post">
-            {% csrf_token %}
-
-            <input type="hidden" name="action" value="submit">
-            <input type="hidden" name="confirm" value="yes">
-
-            <button type="submit">
-                Yes, Submit
-            </button>
-        </form>
-
-        <form method="post">
-            {% csrf_token %}
-
-            <input type="hidden" name="action" value="answer">
-
-            <input
-                type="hidden"
-                name="current_index"
-                value="{{ current_index }}"
-            >
-
-            <input
-                type="hidden"
-                name="question_id"
-                value="{{ current_question.id }}"
-            >
-
-            <input
-                type="hidden"
-                name="navigation"
-                value=""
-            >
-
-            <button type="submit">
-                No, Continue
-            </button>
-        </form>
-
-    {% elif not practice_started %}
+        <h3>
+            {{ current_question.text }}
+        </h3>
 
         <p>
-            There are {{ questions|length }} published question{{ questions|length|pluralize }}.
-        </p>
-
-        <form method="post">
-            {% csrf_token %}
-
-            <input
-                type="hidden"
-                name="action"
-                value="start"
-            >
-
-            <button type="submit">
-                Start Practice
-            </button>
-        </form>
-
-    {% else %}
-
-        <p>
-            Question {{ current_index|add:"1" }}
-            of
-            {{ total_questions }}
-        </p>
-
-        <form method="post">
-            {% csrf_token %}
-
-            <input
-                type="hidden"
-                name="action"
-                value="answer"
-            >
-
-            <input
-                type="hidden"
-                name="question_id"
-                value="{{ current_question.id }}"
-            >
-
-            <input
-                type="hidden"
-                name="current_index"
-                value="{{ current_index }}"
-            >
-
-            <h3>
-                {{ current_question.text }}
-            </h3>
-
-            <p>
-                <label>
-                    <input
-                        type="radio"
-                        name="answer"
-                        value="A"
-                        {% if selected_answer == "A" %}checked{% endif %}
-                    >
-                    A. {{ current_question.option_a }}
-                </label>
-            </p>
-
-            <p>
-                <label>
-                    <input
-                        type="radio"
-                        name="answer"
-                        value="B"
-                        {% if selected_answer == "B" %}checked{% endif %}
-                    >
-                    B. {{ current_question.option_b }}
-                </label>
-            </p>
-
-            <p>
-                <label>
-                    <input
-                        type="radio"
-                        name="answer"
-                        value="C"
-                        {% if selected_answer == "C" %}checked{% endif %}
-                    >
-                    C. {{ current_question.option_c }}
-                </label>
-            </p>
-
-            <p>
-                <label>
-                    <input
-                        type="radio"
-                        name="answer"
-                        value="D"
-                        {% if selected_answer == "D" %}checked{% endif %}
-                    >
-                    D. {{ current_question.option_d }}
-                </label>
-            </p>
-
-            {% if current_index > 0 %}
-                <button
-                    type="submit"
-                    name="navigation"
-                    value="previous"
+            <label>
+                <input
+                    type="radio"
+                    name="answer"
+                    value="A"
+                    {% if selected_answer == "A" %}checked{% endif %}
                 >
-                    Previous
-                </button>
-            {% endif %}
+                A. {{ current_question.option_a }}
+            </label>
+        </p>
 
-            {% if current_index < total_questions|add:"-1" %}
-                <button
-                    type="submit"
-                    name="navigation"
-                    value="next"
+        <p>
+            <label>
+                <input
+                    type="radio"
+                    name="answer"
+                    value="B"
+                    {% if selected_answer == "B" %}checked{% endif %}
                 >
-                    Next
-                </button>
-            {% endif %}
-        </form>
+                B. {{ current_question.option_b }}
+            </label>
+        </p>
 
-        <hr>
+        <p>
+            <label>
+                <input
+                    type="radio"
+                    name="answer"
+                    value="C"
+                    {% if selected_answer == "C" %}checked{% endif %}
+                >
+                C. {{ current_question.option_c }}
+            </label>
+        </p>
 
-        <form method="post">
-            {% csrf_token %}
+        <p>
+            <label>
+                <input
+                    type="radio"
+                    name="answer"
+                    value="D"
+                    {% if selected_answer == "D" %}checked{% endif %}
+                >
+                D. {{ current_question.option_d }}
+            </label>
+        </p>
 
-            <input
-                type="hidden"
+        {% if current_index > 0 %}
+
+            <button
+                type="submit"
                 name="action"
-                value="submit"
+                value="previous"
             >
-
-            <button type="submit">
-                Submit Practice
+                Previous
             </button>
-        </form>
 
-    {% endif %}
+        {% endif %}
+
+        {% if current_index < total_questions|add:"-1" %}
+
+            <button
+                type="submit"
+                name="action"
+                value="next"
+            >
+                Next
+            </button>
+
+        {% endif %}
+
+        <button
+            type="submit"
+            name="action"
+            value="submit"
+        >
+            Submit Practice
+        </button>
+
+    </form>
+
+{% endif %}
+
+{% if practice_started and not show_submit_confirmation %}
+
+    <hr>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <input
+            type="hidden"
+            name="action"
+            value="restart"
+        >
+
+        <button type="submit">
+            Restart Practice
+        </button>
+    </form>
 
 {% endif %}
 

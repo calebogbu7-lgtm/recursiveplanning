@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
@@ -10,6 +11,8 @@ from .models import (
     Topic,
     Subtopic,
     Question,
+    ExamYear,
+    StudentProfile,
 )
 
 
@@ -51,7 +54,10 @@ class ModelIntegrityTests(TestCase):
             category=arts
         )
 
-        self.assertEqual(Subject.objects.filter(name="Biology").count(), 2)
+        self.assertEqual(
+            Subject.objects.filter(name="Biology").count(),
+            2
+        )
 
     def test_syllabus_year_unique_per_subject(self):
         subject = Subject.objects.create(name="Biology")
@@ -225,3 +231,65 @@ class QuestionValidationTests(TestCase):
         )
 
         question.full_clean()
+
+
+class StudentProfileTests(TestCase):
+
+    def test_exam_year_must_be_unique(self):
+        ExamYear.objects.create(year=2027)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ExamYear.objects.create(year=2027)
+
+    def test_student_profile_can_be_created(self):
+        user = User.objects.create_user(
+            username="student1",
+            password="testpassword"
+        )
+
+        exam_year = ExamYear.objects.create(year=2027)
+
+        profile = StudentProfile.objects.create(
+            user=user,
+            exam_year=exam_year
+        )
+
+        self.assertEqual(profile.user, user)
+        self.assertEqual(profile.exam_year, exam_year)
+
+    def test_user_can_have_only_one_student_profile(self):
+        user = User.objects.create_user(
+            username="student1",
+            password="testpassword"
+        )
+
+        exam_year = ExamYear.objects.create(year=2027)
+
+        StudentProfile.objects.create(
+            user=user,
+            exam_year=exam_year
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                StudentProfile.objects.create(
+                    user=user,
+                    exam_year=exam_year
+                )
+
+    def test_exam_year_cannot_be_deleted_if_students_use_it(self):
+        user = User.objects.create_user(
+            username="student1",
+            password="testpassword"
+        )
+
+        exam_year = ExamYear.objects.create(year=2027)
+
+        StudentProfile.objects.create(
+            user=user,
+            exam_year=exam_year
+        )
+
+        with self.assertRaises(ProtectedError):
+            exam_year.delete()
