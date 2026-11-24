@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 
 from .models import (
     Category,
@@ -7,6 +7,9 @@ from .models import (
     Topic,
     Subtopic,
     Question,
+    ExamYear,
+    StudentProfile,
+    PracticeAttempt,
 )
 
 
@@ -46,20 +49,29 @@ class SubtopicAdmin(admin.ModelAdmin):
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
+
+    @admin.display(description="Question")
+    def question_preview(self, obj):
+        if len(obj.text) > 90:
+            return f"{obj.text[:90]}..."
+        return obj.text
+
     list_display = (
-        "text",
+        "question_preview",
         "subtopic",
         "source_type",
         "source_year",
         "difficulty",
         "status",
+        "created_at",
     )
 
     list_filter = (
+        "status",
         "source_type",
         "source_year",
         "difficulty",
-        "status",
+        "subtopic__topic__syllabus_version__subject",
     )
 
     search_fields = (
@@ -68,11 +80,29 @@ class QuestionAdmin(admin.ModelAdmin):
         "option_b",
         "option_c",
         "option_d",
+        "subtopic__name",
+        "subtopic__topic__name",
     )
+
+    autocomplete_fields = ("subtopic",)
 
     readonly_fields = (
         "created_at",
         "updated_at",
+    )
+
+    list_select_related = (
+        "subtopic__topic__syllabus_version__subject",
+    )
+
+    ordering = ("status", "-created_at")
+    list_per_page = 50
+    save_on_top = True
+
+    actions = (
+        "publish_questions",
+        "return_to_draft",
+        "archive_questions",
     )
 
     fieldsets = (
@@ -111,4 +141,78 @@ class QuestionAdmin(admin.ModelAdmin):
                 )
             },
         ),
+    )
+
+    @admin.action(description="Publish selected questions")
+    def publish_questions(self, request, queryset):
+        count = queryset.update(status="published")
+
+        self.message_user(
+            request,
+            f"{count} question(s) published successfully.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Return selected questions to draft")
+    def return_to_draft(self, request, queryset):
+        count = queryset.update(status="draft")
+
+        self.message_user(
+            request,
+            f"{count} question(s) returned to draft.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Archive selected questions")
+    def archive_questions(self, request, queryset):
+        count = queryset.update(status="archived")
+
+        self.message_user(
+            request,
+            f"{count} question(s) archived successfully.",
+            messages.SUCCESS,
+        )
+
+
+@admin.register(ExamYear)
+class ExamYearAdmin(admin.ModelAdmin):
+    list_display = ("year",)
+    ordering = ("-year",)
+
+
+@admin.register(StudentProfile)
+class StudentProfileAdmin(admin.ModelAdmin):
+    list_display = ("user", "exam_year")
+    list_filter = ("exam_year",)
+    search_fields = ("user__username",)
+
+
+@admin.register(PracticeAttempt)
+class PracticeAttemptAdmin(admin.ModelAdmin):
+    list_display = (
+        "student",
+        "subtopic",
+        "score",
+        "total_questions",
+        "started_at",
+        "submitted_at",
+    )
+
+    list_filter = (
+        "subtopic",
+        "submitted_at",
+    )
+
+    search_fields = (
+        "student__user__username",
+        "subtopic__name",
+    )
+
+    readonly_fields = (
+        "student",
+        "subtopic",
+        "started_at",
+        "submitted_at",
+        "score",
+        "total_questions",
     )

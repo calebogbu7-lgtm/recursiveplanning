@@ -13,6 +13,7 @@ from .models import (
     Question,
     ExamYear,
     StudentProfile,
+    PracticeAttempt,
 )
 
 
@@ -664,4 +665,329 @@ class PracticeSessionOwnershipTests(TestCase):
 
         self.assertFalse(
             response.context["practice_started"]
+        )
+
+class PracticeAttemptTests(TestCase):
+
+    def create_student(self):
+        user = User.objects.create_user(
+            username="practice_student",
+            password="testpassword",
+        )
+
+        exam_year = ExamYear.objects.create(
+            year=2027,
+        )
+
+        profile = StudentProfile.objects.create(
+            user=user,
+            exam_year=exam_year,
+        )
+
+        return profile
+
+    def create_subtopic(self):
+        subject = Subject.objects.create(
+            name="Mathematics",
+        )
+
+        syllabus = SyllabusVersion.objects.create(
+            subject=subject,
+            year=2027,
+        )
+
+        topic = Topic.objects.create(
+            syllabus_version=syllabus,
+            name="Algebra",
+        )
+
+        return Subtopic.objects.create(
+            topic=topic,
+            name="Quadratic Equations",
+        )
+
+    def test_practice_attempt_can_be_created(self):
+        student = self.create_student()
+        subtopic = self.create_subtopic()
+
+        attempt = PracticeAttempt.objects.create(
+            student=student,
+            subtopic=subtopic,
+            total_questions=10,
+        )
+
+        self.assertEqual(
+            attempt.student,
+            student,
+        )
+
+        self.assertEqual(
+            attempt.subtopic,
+            subtopic,
+        )
+
+        self.assertEqual(
+            attempt.total_questions,
+            10,
+        )
+
+        self.assertIsNone(
+            attempt.submitted_at,
+        )
+
+        self.assertIsNone(
+            attempt.score,
+        )
+
+        self.assertIsNotNone(
+            attempt.started_at,
+        )
+
+class PracticeAttemptTests(TestCase):
+
+    def create_student(self):
+        user = User.objects.create_user(
+            username="practice_student",
+            password="testpassword",
+        )
+
+        exam_year = ExamYear.objects.create(
+            year=2027,
+        )
+
+        profile = StudentProfile.objects.create(
+            user=user,
+            exam_year=exam_year,
+        )
+
+        return profile
+
+    def create_subtopic(self):
+        subject = Subject.objects.create(
+            name="Mathematics",
+        )
+
+        syllabus = SyllabusVersion.objects.create(
+            subject=subject,
+            year=2027,
+        )
+
+        topic = Topic.objects.create(
+            syllabus_version=syllabus,
+            name="Algebra",
+        )
+
+        return Subtopic.objects.create(
+            topic=topic,
+            name="Quadratic Equations",
+        )
+
+    def test_practice_attempt_can_be_created(self):
+        student = self.create_student()
+        subtopic = self.create_subtopic()
+
+        attempt = PracticeAttempt.objects.create(
+            student=student,
+            subtopic=subtopic,
+            total_questions=10,
+        )
+
+        self.assertEqual(
+            attempt.student,
+            student,
+        )
+
+        self.assertEqual(
+            attempt.subtopic,
+            subtopic,
+        )
+
+        self.assertEqual(
+            attempt.total_questions,
+            10,
+        )
+
+        self.assertIsNone(
+            attempt.submitted_at,
+        )
+
+        self.assertIsNone(
+            attempt.score,
+        )
+
+        self.assertIsNotNone(
+            attempt.started_at,
+        )
+
+    def test_practice_attempt_string_representation(self):
+        student = self.create_student()
+        subtopic = self.create_subtopic()
+
+        attempt = PracticeAttempt.objects.create(
+            student=student,
+            subtopic=subtopic,
+            total_questions=5,
+        )
+
+        self.assertEqual(
+            str(attempt),
+            "practice_student - Quadratic Equations",
+        )
+
+    def test_practice_attempt_stores_score_after_submission(self):
+        student = self.create_student()
+        subtopic = self.create_subtopic()
+
+        question_one = Question.objects.create(
+            subtopic=subtopic,
+            text="What is 2 + 2?",
+            option_a="3",
+            option_b="4",
+            option_c="5",
+            option_d="6",
+            correct_option="B",
+            status="published",
+        )
+
+        Question.objects.create(
+            subtopic=subtopic,
+            text="What is 3 + 3?",
+            option_a="5",
+            option_b="6",
+            option_c="7",
+            option_d="8",
+            correct_option="B",
+            status="published",
+        )
+
+        attempt = PracticeAttempt.objects.create(
+            student=student,
+            subtopic=subtopic,
+            total_questions=2,
+        )
+
+        session = self.client.session
+
+        session[f"practice_{subtopic.id}"] = {
+            "user_id": student.user.id,
+            "exam_year": 2027,
+            "subtopic_id": subtopic.id,
+            "attempt_id": attempt.id,
+            "current_index": 0,
+            "answers": {
+                str(question_one.id): "B",
+            },
+            "submitted": False,
+            "started": True,
+        }
+
+        session.save()
+
+        self.client.force_login(student.user)
+
+        response = self.client.post(
+            f"/practice/subtopic/{subtopic.id}/",
+            {
+                "action": "submit",
+                "question_id": str(question_one.id),
+                "answer": "B",
+                "confirm": "yes",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        attempt.refresh_from_db()
+
+        self.assertEqual(
+            attempt.score,
+            1,
+        )
+
+        self.assertEqual(
+            attempt.total_questions,
+            2,
+        )
+
+        self.assertIsNotNone(
+            attempt.submitted_at,
+        )
+
+    def test_practice_attempt_cannot_be_updated_by_another_student(
+        self,
+    ):
+        student = self.create_student()
+
+        other_user = User.objects.create_user(
+            username="other_student",
+            password="testpassword",
+        )
+
+        StudentProfile.objects.create(
+            user=other_user,
+            exam_year=student.exam_year,
+        )
+
+        subtopic = self.create_subtopic()
+
+        question = Question.objects.create(
+            subtopic=subtopic,
+            text="What is 2 + 2?",
+            option_a="3",
+            option_b="4",
+            option_c="5",
+            option_d="6",
+            correct_option="B",
+            status="published",
+        )
+
+        attempt = PracticeAttempt.objects.create(
+            student=student,
+            subtopic=subtopic,
+            total_questions=1,
+        )
+
+        session = self.client.session
+
+        session[f"practice_{subtopic.id}"] = {
+            "user_id": student.user.id,
+            "exam_year": 2027,
+            "subtopic_id": subtopic.id,
+            "attempt_id": attempt.id,
+            "current_index": 0,
+            "answers": {},
+            "submitted": False,
+            "started": True,
+        }
+
+        session.save()
+
+        self.client.force_login(other_user)
+
+        response = self.client.post(
+            f"/practice/subtopic/{subtopic.id}/",
+            {
+                "action": "submit",
+                "question_id": str(question.id),
+                "answer": "B",
+                "confirm": "yes",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        attempt.refresh_from_db()
+
+        self.assertIsNone(
+            attempt.score,
+        )
+
+        self.assertIsNone(
+            attempt.submitted_at,
         )

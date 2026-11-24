@@ -1,0 +1,188 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Student Dashboard
+{% endblock %}
+
+{% block content %}
+
+<h2>
+    Welcome, {{ request.user.username }}!
+</h2>
+
+<h3>Your Account Information</h3>
+
+<p>
+    <strong>Username:</strong>
+    {{ request.user.username }}
+</p>
+
+<p>
+    <strong>JAMB Exam Year:</strong>
+    {{ profile.exam_year.year }}
+</p>
+
+<p>
+    <a href="{% url 'practice' %}">
+        Start Practising
+    </a>
+</p>
+
+<hr>
+
+<h3>Overall Performance</h3>
+
+<div>
+    <h4>Completed Attempts</h4>
+    <p>{{ completed_attempts }}</p>
+</div>
+
+<div>
+    <h4>Questions Practised</h4>
+    <p>{{ total_questions }}</p>
+</div>
+
+<div>
+    <h4>Correct Answers</h4>
+    <p>{{ total_correct }}</p>
+</div>
+
+<div>
+    <h4>Overall Accuracy</h4>
+    <p>{{ accuracy }}%</p>
+</div>
+
+<hr>
+
+<h3>Subject Performance</h3>
+
+{% if subject_performance %}
+
+    <table border="1" cellpadding="8">
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Attempts</th>
+                <th>Questions</th>
+                <th>Correct</th>
+                <th>Accuracy</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for subject in subject_performance %}
+                <tr>
+                    <td>{{ subject.name }}</td>
+                    <td>{{ subject.attempts }}</td>
+                    <td>{{ subject.questions }}</td>
+                    <td>{{ subject.correct }}</td>
+                    <td>{{ subject.accuracy }}%</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+{% else %}
+
+    <p>
+        Your subject performance will appear after you complete practice sessions.
+    </p>
+
+{% endif %}
+
+<hr>
+
+<h3>Topic Performance</h3>
+
+{% if topic_performance %}
+
+    <table border="1" cellpadding="8">
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Topic</th>
+                <th>Attempts</th>
+                <th>Questions</th>
+                <th>Correct</th>
+                <th>Accuracy</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for topic in topic_performance %}
+                <tr>
+                    <td>{{ topic.subject }}</td>
+                    <td>{{ topic.name }}</td>
+                    <td>{{ topic.attempts }}</td>
+                    <td>{{ topic.questions }}</td>
+                    <td>{{ topic.correct }}</td>
+                    <td>{{ topic.accuracy }}%</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+{% else %}
+
+    <p>
+        Your topic performance will appear here after you complete practice sessions.
+    </p>
+
+{% endif %}
+
+<hr>
+
+<h3>Practice History</h3>
+
+{% if practice_history %}
+
+    <table border="1" cellpadding="8">
+
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Topic</th>
+                <th>Subtopic</th>
+                <th>Score</th>
+                <th>Accuracy</th>
+                <th>Completed</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            {% for attempt in practice_history %}
+
+                <tr>
+                    <td>{{ attempt.subject }}</td>
+                    <td>{{ attempt.topic }}</td>
+                    <td>{{ attempt.subtopic }}</td>
+
+                    <td>
+                        {{ attempt.score }}/{{ attempt.total_questions }}
+                    </td>
+
+                    <td>
+                        {{ attempt.accuracy }}%
+                    </td>
+
+                    <td>
+                        {{ attempt.submitted_at|date:"M d, Y - H:i" }}
+                    </td>
+                </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+{% else %}
+
+    <p>
+        You have not completed any practice sessions yet.
+    </p>
+
+{% endif %}
+
+{% endblock %}

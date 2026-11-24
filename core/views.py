@@ -2,9 +2,11 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from .forms import StudentRegistrationForm
 from .models import (
+    PracticeAttempt,
     Question,
     StudentProfile,
     Subject,
@@ -14,7 +16,10 @@ from .models import (
 
 
 def home(request):
-    return render(request, "core/home.html")
+    return render(
+        request,
+        "core/home.html",
+    )
 
 
 def register(request):
@@ -29,7 +34,7 @@ def register(request):
 
             messages.success(
                 request,
-                "Your account has been created successfully. Please log in."
+                "Your account has been created successfully. Please log in.",
             )
 
             return redirect("student_login")
@@ -67,7 +72,7 @@ def student_login(request):
 
         messages.error(
             request,
-            "Invalid username or password."
+            "Invalid username or password.",
         )
 
     return render(
@@ -90,11 +95,153 @@ def student_dashboard(request):
         user=request.user,
     )
 
+    attempts = list(
+        PracticeAttempt.objects.filter(
+            student=profile,
+            submitted_at__isnull=False,
+        )
+        .select_related(
+            "subtopic",
+            "subtopic__topic",
+            "subtopic__topic__syllabus_version",
+            "subtopic__topic__syllabus_version__subject",
+        )
+        .order_by("-submitted_at")
+    )
+
+    completed_attempts = len(attempts)
+
+    total_questions = sum(
+        attempt.total_questions
+        for attempt in attempts
+    )
+
+    total_correct = sum(
+        attempt.score or 0
+        for attempt in attempts
+    )
+
+    accuracy = (
+        round(
+            (total_correct / total_questions) * 100,
+            1,
+        )
+        if total_questions > 0
+        else 0
+    )
+
+    subject_data = {}
+    topic_data = {}
+
+    practice_history = []
+
+    for attempt in attempts:
+        subject = (
+            attempt.subtopic.topic
+            .syllabus_version.subject
+        )
+
+        topic = attempt.subtopic.topic
+
+        score = attempt.score or 0
+        total = attempt.total_questions
+
+        attempt_accuracy = (
+            round(
+                (score / total) * 100,
+                1,
+            )
+            if total > 0
+            else 0
+        )
+
+        if subject.id not in subject_data:
+            subject_data[subject.id] = {
+                "name": subject.name,
+                "attempts": 0,
+                "questions": 0,
+                "correct": 0,
+            }
+
+        subject_data[subject.id]["attempts"] += 1
+        subject_data[subject.id]["questions"] += total
+        subject_data[subject.id]["correct"] += score
+
+        if topic.id not in topic_data:
+            topic_data[topic.id] = {
+                "name": topic.name,
+                "subject": subject.name,
+                "attempts": 0,
+                "questions": 0,
+                "correct": 0,
+            }
+
+        topic_data[topic.id]["attempts"] += 1
+        topic_data[topic.id]["questions"] += total
+        topic_data[topic.id]["correct"] += score
+
+        practice_history.append(
+            {
+                "subject": subject.name,
+                "topic": topic.name,
+                "subtopic": attempt.subtopic.name,
+                "score": score,
+                "total_questions": total,
+                "accuracy": attempt_accuracy,
+                "submitted_at": attempt.submitted_at,
+            }
+        )
+
+    subject_performance = []
+
+    for data in subject_data.values():
+        data["accuracy"] = (
+            round(
+                (data["correct"] / data["questions"]) * 100,
+                1,
+            )
+            if data["questions"] > 0
+            else 0
+        )
+
+        subject_performance.append(data)
+
+    topic_performance = []
+
+    for data in topic_data.values():
+        data["accuracy"] = (
+            round(
+                (data["correct"] / data["questions"]) * 100,
+                1,
+            )
+            if data["questions"] > 0
+            else 0
+        )
+
+        topic_performance.append(data)
+
+    subject_performance.sort(
+        key=lambda item: item["accuracy"],
+        reverse=True,
+    )
+
+    topic_performance.sort(
+        key=lambda item: item["accuracy"],
+        reverse=True,
+    )
+
     return render(
         request,
         "core/dashboard.html",
         {
             "profile": profile,
+            "completed_attempts": completed_attempts,
+            "total_questions": total_questions,
+            "total_correct": total_correct,
+            "accuracy": accuracy,
+            "practice_history": practice_history,
+            "subject_performance": subject_performance,
+            "topic_performance": topic_performance,
         },
     )
 
@@ -108,9 +255,13 @@ def practice(request):
 
     exam_year = profile.exam_year.year
 
-    subjects = Subject.objects.filter(
-        syllabus_versions__year=exam_year
-    ).distinct().order_by("name")
+    subjects = (
+        Subject.objects.filter(
+            syllabus_versions__year=exam_year
+        )
+        .distinct()
+        .order_by("name")
+    )
 
     return render(
         request,
@@ -204,38 +355,38 @@ def subtopic_detail(request, subtopic_id):
 
     practice_data = request.session.get(session_key)
 
-    
-    
- 
-
-
-
     if practice_data and (
         practice_data.get("user_id") != request.user.id
         or practice_data.get("exam_year") != profile.exam_year.year
         or practice_data.get("subtopic_id") != subtopic.id
     ):
-        request.session.pop(session_key, None)
+        request.session.pop(
+            session_key,
+            None,
+        )
         practice_data = None
-
-
-     
 
     if practice_data and practice_data.get("submitted"):
         return redirect(
             "practice_results",
-             subtopic_id=subtopic.id,
+            subtopic_id=subtopic.id,
         )
-
 
     if request.method == "POST":
         action = request.POST.get("action")
 
         if action == "start":
+            attempt = PracticeAttempt.objects.create(
+                student=profile,
+                subtopic=subtopic,
+                total_questions=len(questions),
+            )
+
             request.session[session_key] = {
                 "user_id": request.user.id,
                 "exam_year": profile.exam_year.year,
                 "subtopic_id": subtopic.id,
+                "attempt_id": attempt.id,
                 "current_index": 0,
                 "answers": {},
                 "submitted": False,
@@ -259,7 +410,7 @@ def subtopic_detail(request, subtopic_id):
 
             valid_question_ids = {
                 str(question.id)
-                for questiom in questions
+                for question in questions
             }
 
             if (
@@ -269,19 +420,6 @@ def subtopic_detail(request, subtopic_id):
                 practice_data["answers"][question_id] = selected_option
 
             current_index = practice_data["current_index"]
-            if action == "next":
-                current_index += 1
-            else:
-                current_index  -= 1
-                
-            current_index = max(
-                0,
-                min(current_index, len(questions) - 1),
-
-            )
-
-            practice_data["current_index"] = current_index
-
 
             if action == "next":
                 current_index += 1
@@ -290,11 +428,15 @@ def subtopic_detail(request, subtopic_id):
 
             current_index = max(
                 0,
-                min(current_index, len(questions) - 1),
+                min(
+                    current_index,
+                    len(questions) - 1,
+                ),
             )
 
             practice_data["current_index"] = current_index
-    
+
+            request.session[session_key] = practice_data
 
             return redirect(
                 "subtopic_detail",
@@ -307,6 +449,7 @@ def subtopic_detail(request, subtopic_id):
                     "subtopic_detail",
                     subtopic_id=subtopic.id,
                 )
+
             if practice_data.get("submitted"):
                 return redirect(
                     "practice_results",
@@ -316,10 +459,16 @@ def subtopic_detail(request, subtopic_id):
             question_id = request.POST.get("question_id")
             selected_option = request.POST.get("answer")
 
-            if selected_option in {"A", "B", "C", "D"}:
-                practice_data["answers"][str(question_id)] = (
-                    selected_option
-                )
+            valid_question_ids = {
+                str(question.id)
+                for question in questions
+            }
+
+            if (
+                question_id in valid_question_ids
+                and selected_option in {"A", "B", "C", "D"}
+            ):
+                practice_data["answers"][question_id] = selected_option
 
             unanswered = [
                 question
@@ -359,7 +508,40 @@ def subtopic_detail(request, subtopic_id):
                     },
                 )
 
+            score = 0
+
+            for question in questions:
+                selected_answer = practice_data["answers"].get(
+                    str(question.id)
+                )
+
+                if selected_answer == question.correct_option:
+                    score += 1
+
+            attempt_id = practice_data.get("attempt_id")
+
+            if attempt_id:
+                attempt = get_object_or_404(
+                    PracticeAttempt,
+                    id=attempt_id,
+                    student=profile,
+                    subtopic=subtopic,
+                )
+
+                attempt.score = score
+                attempt.submitted_at = timezone.now()
+                attempt.total_questions = len(questions)
+
+                attempt.save(
+                    update_fields=[
+                        "score",
+                        "submitted_at",
+                        "total_questions",
+                    ]
+                )
+
             practice_data["submitted"] = True
+
             request.session[session_key] = practice_data
 
             return redirect(
@@ -368,7 +550,10 @@ def subtopic_detail(request, subtopic_id):
             )
 
         if action == "restart":
-            request.session.pop(session_key, None)
+            request.session.pop(
+                session_key,
+                None,
+            )
 
             return redirect(
                 "subtopic_detail",
@@ -397,10 +582,14 @@ def subtopic_detail(request, subtopic_id):
 
     current_index = max(
         0,
-        min(current_index, len(questions) - 1),
+        min(
+            current_index,
+            len(questions) - 1,
+        ),
     )
 
     practice_data["current_index"] = current_index
+
     request.session[session_key] = practice_data
 
     current_question = questions[current_index]
@@ -422,27 +611,6 @@ def subtopic_detail(request, subtopic_id):
         },
     )
 
-@login_required(login_url="student_login")
-def practice_results(request, subtopic_id):
-    profile = get_object_or_404(
-        StudentProfile,
-        user=request.user,
-    )
-
-    subtopic = get_object_or_404(
-        Subtopic,
-        id=subtopic_id,
-        topic__syllabus_version__year=profile.exam_year.year,
-    )
-
-    questions = list(
-        subtopic.questions.filter(
-            status="published"
-        ).order_by("id")
-    )
-
-    session_key = f"practice_{subtopic.id}"
-    practice_data = request.session.get(session_key)
 
 @login_required(login_url="student_login")
 def practice_results(request, subtopic_id):
@@ -464,6 +632,7 @@ def practice_results(request, subtopic_id):
     )
 
     session_key = f"practice_{subtopic.id}"
+
     practice_data = request.session.get(session_key)
 
     if not practice_data or (
@@ -483,13 +652,17 @@ def practice_results(request, subtopic_id):
     score = 0
 
     for question in questions:
-        selected_option = answers.get(str(question.id))
+        selected_option = answers.get(
+            str(question.id)
+        )
 
         if selected_option == question.correct_option:
             score += 1
             result_status = "correct"
+
         elif selected_option is None:
             result_status = "unanswered"
+
         else:
             result_status = "incorrect"
 

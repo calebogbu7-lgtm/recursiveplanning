@@ -238,3 +238,39 @@ class StudentProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} — JAMB {self.exam_year.year}"
+
+
+class PracticeAttempt(models.Model):
+    student = models.ForeignKey(
+        StudentProfile,
+        on_delete=models.CASCADE,
+        related_name="practice_attempts",
+    )
+
+    subtopic = models.ForeignKey(
+        Subtopic,
+        on_delete=models.PROTECT,
+        related_name="practice_attempts",
+    )
+
+    started_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    submitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    score = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+
+    total_questions = models.PositiveIntegerField()
+
+    def __str__(self):
+        return (
+            f"{self.student.user.username} - "
+            f"{self.subtopic.name}"
+        )
