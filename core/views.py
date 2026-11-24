@@ -384,10 +384,17 @@ def subtopic_detail(request, subtopic_id):
     )
 
 
+@login_required(login_url="student_login")
 def practice_results(request, subtopic_id):
+    profile = get_object_or_404(
+        StudentProfile,
+        user=request.user,
+    )
+
     subtopic = get_object_or_404(
         Subtopic,
         id=subtopic_id,
+        topic__syllabus_version__year=profile.exam_year.year,
     )
 
     questions = list(

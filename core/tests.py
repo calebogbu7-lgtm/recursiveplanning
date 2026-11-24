@@ -294,6 +294,7 @@ class StudentProfileTests(TestCase):
         with self.assertRaises(ProtectedError):
             exam_year.delete()
 
+
 class StudentPracticeAccessTests(TestCase):
 
     def create_student(self, username="student1", exam_year=2027):
@@ -377,6 +378,7 @@ class StudentPracticeAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Mathematics")
         self.assertNotContains(response, "Biology")
+
 
 class StudentPracticeHierarchyAccessTests(TestCase):
 
@@ -476,3 +478,107 @@ class StudentPracticeHierarchyAccessTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+class StudentPracticeResultsAccessTests(TestCase):
+
+    def create_student(self, username="student1", exam_year=2027):
+        user = User.objects.create_user(
+            username=username,
+            password="testpassword"
+        )
+
+        year = ExamYear.objects.create(year=exam_year)
+
+        StudentProfile.objects.create(
+            user=user,
+            exam_year=year
+        )
+
+        return user
+
+    def create_practice_hierarchy(self, year=2027):
+        subject = Subject.objects.create(
+            name=f"Mathematics {year}"
+        )
+
+        syllabus = SyllabusVersion.objects.create(
+            subject=subject,
+            year=year
+        )
+
+        topic = Topic.objects.create(
+            syllabus_version=syllabus,
+            name=f"Algebra {year}"
+        )
+
+        subtopic = Subtopic.objects.create(
+            topic=topic,
+            name=f"Quadratic Equations {year}"
+        )
+
+        return subject, topic, subtopic
+
+    def test_student_can_access_results_for_matching_exam_year(self):
+        user = self.create_student(exam_year=2027)
+
+        subject, topic, subtopic = self.create_practice_hierarchy(
+            year=2027
+        )
+
+        Question.objects.create(
+            subtopic=subtopic,
+            text="What is 2 + 2?",
+            option_a="3",
+            option_b="4",
+            option_c="5",
+            option_d="6",
+            correct_option="B",
+            status="published",
+        )
+
+        self.client.force_login(user)
+
+        session = self.client.session
+        session[f"practice_{subtopic.id}"] = {
+            "current_index": 0,
+            "answers": {},
+            "submitted": True,
+            "started": True,
+        }
+        session.save()
+
+        response = self.client.get(
+            f"/practice/subtopic/{subtopic.id}/results/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_student_cannot_access_results_for_different_exam_year(self):
+        user = self.create_student(exam_year=2027)
+
+        subject, topic, subtopic = self.create_practice_hierarchy(
+            year=2028
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get(
+            f"/practice/subtopic/{subtopic.id}/results/"
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_unauthenticated_student_cannot_access_results(self):
+        subject, topic, subtopic = self.create_practice_hierarchy(
+            year=2027
+        )
+
+        response = self.client.get(
+            f"/practice/subtopic/{subtopic.id}/results/"
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            "/login/",
+            response.url,
+        )
