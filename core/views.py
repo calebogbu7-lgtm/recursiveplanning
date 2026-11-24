@@ -241,17 +241,31 @@ def subtopic_detail(request, subtopic_id):
             question_id = request.POST.get("question_id")
             selected_option = request.POST.get("answer")
 
-            if selected_option in {"A", "B", "C", "D"}:
-                practice_data["answers"][str(question_id)] = (
-                    selected_option
-                )
+            valid_question_ids = {
+                str(question.id)
+                for questiom in questions
+            }
 
-            current_index = int(
-                request.POST.get(
-                    "current_index",
-                    practice_data["current_index"],
-                )
+            if (
+                question_id in valid_question_ids
+                and selected_option in {"A", "B", "C", "D"}
+            ):
+                practice_data["answers"][question_id] = selected_option
+
+            current_index = practice_data["current_index"]
+            if action == "next":
+                current_index += 1
+            else:
+                current_index  -= 1
+                
+            current_index = max(
+                0,
+                min(current_index, len(questions) - 1),
+
             )
+
+            practice_data["current_index"] = current_index
+
 
             if action == "next":
                 current_index += 1
@@ -264,7 +278,7 @@ def subtopic_detail(request, subtopic_id):
             )
 
             practice_data["current_index"] = current_index
-            request.session[session_key] = practice_data
+    
 
             return redirect(
                 "subtopic_detail",
