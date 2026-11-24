@@ -204,6 +204,12 @@ def subtopic_detail(request, subtopic_id):
 
     practice_data = request.session.get(session_key)
 
+    
+    
+ 
+
+
+
     if practice_data and (
         practice_data.get("user_id") != request.user.id
         or practice_data.get("exam_year") != profile.exam_year.year
@@ -211,6 +217,16 @@ def subtopic_detail(request, subtopic_id):
     ):
         request.session.pop(session_key, None)
         practice_data = None
+
+
+     
+
+    if practice_data and practice_data.get("submitted"):
+        return redirect(
+            "practice_results",
+             subtopic_id=subtopic.id,
+        )
+
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -289,6 +305,11 @@ def subtopic_detail(request, subtopic_id):
             if not practice_data or not practice_data.get("started"):
                 return redirect(
                     "subtopic_detail",
+                    subtopic_id=subtopic.id,
+                )
+            if practice_data.get("submitted"):
+                return redirect(
+                    "practice_results",
                     subtopic_id=subtopic.id,
                 )
 
