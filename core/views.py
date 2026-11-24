@@ -83,7 +83,7 @@ def student_logout(request):
     return redirect("home")
 
 
-@login_required
+@login_required(login_url="student_login")
 def student_dashboard(request):
     profile = get_object_or_404(
         StudentProfile,
@@ -99,7 +99,6 @@ def student_dashboard(request):
     )
 
 
-@login_required(login_url="student_login")
 @login_required(login_url="student_login")
 def practice(request):
     profile = get_object_or_404(
@@ -203,11 +202,24 @@ def subtopic_detail(request, subtopic_id):
 
     session_key = f"practice_{subtopic.id}"
 
+    practice_data = request.session.get(session_key)
+
+    if practice_data and (
+        practice_data.get("user_id") != request.user.id
+        or practice_data.get("exam_year") != profile.exam_year.year
+        or practice_data.get("subtopic_id") != subtopic.id
+    ):
+        request.session.pop(session_key, None)
+        practice_data = None
+
     if request.method == "POST":
         action = request.POST.get("action")
 
         if action == "start":
             request.session[session_key] = {
+                "user_id": request.user.id,
+                "exam_year": profile.exam_year.year,
+                "subtopic_id": subtopic.id,
                 "current_index": 0,
                 "answers": {},
                 "submitted": False,
@@ -220,8 +232,6 @@ def subtopic_detail(request, subtopic_id):
             )
 
         if action in {"next", "previous"}:
-            practice_data = request.session.get(session_key)
-
             if not practice_data or not practice_data.get("started"):
                 return redirect(
                     "subtopic_detail",
@@ -254,7 +264,6 @@ def subtopic_detail(request, subtopic_id):
             )
 
             practice_data["current_index"] = current_index
-
             request.session[session_key] = practice_data
 
             return redirect(
@@ -263,8 +272,6 @@ def subtopic_detail(request, subtopic_id):
             )
 
         if action == "submit":
-            practice_data = request.session.get(session_key)
-
             if not practice_data or not practice_data.get("started"):
                 return redirect(
                     "subtopic_detail",
@@ -339,8 +346,6 @@ def subtopic_detail(request, subtopic_id):
                 subtopic_id=subtopic.id,
             )
 
-    practice_data = request.session.get(session_key)
-
     if not practice_data or not practice_data.get("started"):
         return render(
             request,
@@ -361,7 +366,6 @@ def subtopic_detail(request, subtopic_id):
     )
 
     practice_data["current_index"] = current_index
-
     request.session[session_key] = practice_data
 
     current_question = questions[current_index]
@@ -382,7 +386,6 @@ def subtopic_detail(request, subtopic_id):
             "show_submit_confirmation": False,
         },
     )
-
 
 @login_required(login_url="student_login")
 def practice_results(request, subtopic_id):
@@ -406,7 +409,34 @@ def practice_results(request, subtopic_id):
     session_key = f"practice_{subtopic.id}"
     practice_data = request.session.get(session_key)
 
-    if not practice_data or not practice_data.get("submitted"):
+@login_required(login_url="student_login")
+def practice_results(request, subtopic_id):
+    profile = get_object_or_404(
+        StudentProfile,
+        user=request.user,
+    )
+
+    subtopic = get_object_or_404(
+        Subtopic,
+        id=subtopic_id,
+        topic__syllabus_version__year=profile.exam_year.year,
+    )
+
+    questions = list(
+        subtopic.questions.filter(
+            status="published"
+        ).order_by("id")
+    )
+
+    session_key = f"practice_{subtopic.id}"
+    practice_data = request.session.get(session_key)
+
+    if not practice_data or (
+        practice_data.get("user_id") != request.user.id
+        or practice_data.get("exam_year") != profile.exam_year.year
+        or practice_data.get("subtopic_id") != subtopic.id
+        or not practice_data.get("submitted")
+    ):
         return redirect(
             "subtopic_detail",
             subtopic_id=subtopic.id,

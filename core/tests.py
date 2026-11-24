@@ -540,6 +540,9 @@ class StudentPracticeResultsAccessTests(TestCase):
 
         session = self.client.session
         session[f"practice_{subtopic.id}"] = {
+            "user_id": user.id,
+            "exam_year": 2027,
+            "subtopic_id": subtopic.id,
             "current_index": 0,
             "answers": {},
             "submitted": True,
@@ -578,7 +581,87 @@ class StudentPracticeResultsAccessTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn(
-            "/login/",
-            response.url,
+        self.assertIn("/login/", response.url)
+
+
+class PracticeSessionOwnershipTests(TestCase):
+
+    def create_student(self, username, exam_year=2027):
+        user = User.objects.create_user(
+            username=username,
+            password="testpassword"
+        )
+
+        year, _ = ExamYear.objects.get_or_create(
+            year=exam_year
+        )
+
+        StudentProfile.objects.create(
+            user=user,
+            exam_year=year
+        )
+
+        return user
+
+    def create_subtopic(self):
+        subject = Subject.objects.create(
+            name="Mathematics"
+        )
+
+        syllabus = SyllabusVersion.objects.create(
+            subject=subject,
+            year=2027
+        )
+
+        topic = Topic.objects.create(
+            syllabus_version=syllabus,
+            name="Algebra"
+        )
+
+        return Subtopic.objects.create(
+            topic=topic,
+            name="Quadratic Equations"
+        )
+
+    def test_another_student_cannot_reuse_existing_practice_session(self):
+        student_a = self.create_student("student_a")
+        student_b = self.create_student("student_b")
+
+        subtopic = self.create_subtopic()
+
+        Question.objects.create(
+            subtopic=subtopic,
+            text="What is 2 + 2?",
+            option_a="3",
+            option_b="4",
+            option_c="5",
+            option_d="6",
+            correct_option="B",
+            status="published",
+        )
+
+        self.client.force_login(student_a)
+
+        session = self.client.session
+        session[f"practice_{subtopic.id}"] = {
+            "user_id": student_a.id,
+            "exam_year": 2027,
+            "subtopic_id": subtopic.id,
+            "current_index": 0,
+            "answers": {},
+            "submitted": False,
+            "started": True,
+        }
+        session.save()
+
+        self.client.force_login(student_b)
+
+        response = self.client.get(
+            f"/practice/subtopic/{subtopic.id}/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertFalse(
+            response.context["practice_started"]
         )
