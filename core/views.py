@@ -99,22 +99,41 @@ def student_dashboard(request):
     )
 
 
+@login_required(login_url="student_login")
+@login_required(login_url="student_login")
 def practice(request):
-    subjects = Subject.objects.all().order_by("name")
+    profile = get_object_or_404(
+        StudentProfile,
+        user=request.user,
+    )
+
+    exam_year = profile.exam_year.year
+
+    subjects = Subject.objects.filter(
+        syllabus_versions__year=exam_year
+    ).distinct().order_by("name")
 
     return render(
         request,
         "core/practice.html",
         {
             "subjects": subjects,
+            "exam_year": exam_year,
         },
     )
 
 
+@login_required(login_url="student_login")
 def subject_detail(request, subject_id):
+    profile = get_object_or_404(
+        StudentProfile,
+        user=request.user,
+    )
+
     subject = get_object_or_404(
         Subject,
         id=subject_id,
+        syllabus_versions__year=profile.exam_year.year,
     )
 
     syllabuses = subject.syllabus_versions.prefetch_related(
@@ -131,10 +150,17 @@ def subject_detail(request, subject_id):
     )
 
 
+@login_required(login_url="student_login")
 def topic_detail(request, topic_id):
+    profile = get_object_or_404(
+        StudentProfile,
+        user=request.user,
+    )
+
     topic = get_object_or_404(
         Topic,
         id=topic_id,
+        syllabus_version__year=profile.exam_year.year,
     )
 
     return render(
@@ -146,10 +172,17 @@ def topic_detail(request, topic_id):
     )
 
 
+@login_required(login_url="student_login")
 def subtopic_detail(request, subtopic_id):
+    profile = get_object_or_404(
+        StudentProfile,
+        user=request.user,
+    )
+
     subtopic = get_object_or_404(
         Subtopic,
         id=subtopic_id,
+        topic__syllabus_version__year=profile.exam_year.year,
     )
 
     questions = list(

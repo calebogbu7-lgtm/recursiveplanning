@@ -293,3 +293,186 @@ class StudentProfileTests(TestCase):
 
         with self.assertRaises(ProtectedError):
             exam_year.delete()
+
+class StudentPracticeAccessTests(TestCase):
+
+    def create_student(self, username="student1", exam_year=2027):
+        user = User.objects.create_user(
+            username=username,
+            password="testpassword"
+        )
+
+        year = ExamYear.objects.create(year=exam_year)
+
+        StudentProfile.objects.create(
+            user=user,
+            exam_year=year
+        )
+
+        return user
+
+    def test_student_sees_subject_with_matching_exam_year(self):
+        user = self.create_student(exam_year=2027)
+
+        mathematics = Subject.objects.create(
+            name="Mathematics"
+        )
+
+        SyllabusVersion.objects.create(
+            subject=mathematics,
+            year=2027
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get("/practice/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Mathematics")
+
+    def test_student_does_not_see_subject_without_matching_exam_year(self):
+        user = self.create_student(exam_year=2027)
+
+        mathematics = Subject.objects.create(
+            name="Mathematics"
+        )
+
+        SyllabusVersion.objects.create(
+            subject=mathematics,
+            year=2028
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get("/practice/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Mathematics")
+
+    def test_student_sees_only_subjects_with_matching_exam_year(self):
+        user = self.create_student(exam_year=2027)
+
+        mathematics = Subject.objects.create(
+            name="Mathematics"
+        )
+
+        biology = Subject.objects.create(
+            name="Biology"
+        )
+
+        SyllabusVersion.objects.create(
+            subject=mathematics,
+            year=2027
+        )
+
+        SyllabusVersion.objects.create(
+            subject=biology,
+            year=2028
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get("/practice/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Mathematics")
+        self.assertNotContains(response, "Biology")
+
+class StudentPracticeHierarchyAccessTests(TestCase):
+
+    def create_student(self, username="student1", exam_year=2027):
+        user = User.objects.create_user(
+            username=username,
+            password="testpassword"
+        )
+
+        year = ExamYear.objects.create(year=exam_year)
+
+        StudentProfile.objects.create(
+            user=user,
+            exam_year=year
+        )
+
+        return user
+
+    def create_practice_hierarchy(self, year=2027):
+        subject = Subject.objects.create(
+            name=f"Mathematics {year}"
+        )
+
+        syllabus = SyllabusVersion.objects.create(
+            subject=subject,
+            year=year
+        )
+
+        topic = Topic.objects.create(
+            syllabus_version=syllabus,
+            name=f"Algebra {year}"
+        )
+
+        subtopic = Subtopic.objects.create(
+            topic=topic,
+            name=f"Quadratic Equations {year}"
+        )
+
+        return subject, topic, subtopic
+
+    def test_student_can_access_subject_for_matching_exam_year(self):
+        user = self.create_student(exam_year=2027)
+
+        subject, topic, subtopic = self.create_practice_hierarchy(
+            year=2027
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get(
+            f"/practice/subject/{subject.id}/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_student_cannot_access_subject_for_different_exam_year(self):
+        user = self.create_student(exam_year=2027)
+
+        subject, topic, subtopic = self.create_practice_hierarchy(
+            year=2028
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get(
+            f"/practice/subject/{subject.id}/"
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_student_cannot_access_topic_for_different_exam_year(self):
+        user = self.create_student(exam_year=2027)
+
+        subject, topic, subtopic = self.create_practice_hierarchy(
+            year=2028
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get(
+            f"/practice/topic/{topic.id}/"
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_student_cannot_access_subtopic_for_different_exam_year(self):
+        user = self.create_student(exam_year=2027)
+
+        subject, topic, subtopic = self.create_practice_hierarchy(
+            year=2028
+        )
+
+        self.client.force_login(user)
+
+        response = self.client.get(
+            f"/practice/subtopic/{subtopic.id}/"
+        )
+
+        self.assertEqual(response.status_code, 404)
