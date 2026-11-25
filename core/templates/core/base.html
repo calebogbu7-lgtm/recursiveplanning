@@ -40,6 +40,13 @@
                     </button>
                 </form>
 
+                {% if request.user.is_staff %}
+                    |
+                    <a href="/admin/">
+                        Admin
+                    </a>
+                {% endif %}
+
             {% else %}
 
                 |
@@ -53,11 +60,6 @@
                 </a>
 
             {% endif %}
-
-            |
-            <a href="/admin/">
-                Admin
-            </a>
 
         </nav>
 

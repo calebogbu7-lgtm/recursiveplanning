@@ -274,3 +274,192 @@ class PracticeAttempt(models.Model):
             f"{self.student.user.username} - "
             f"{self.subtopic.name}"
         )
+
+
+class PracticeSession(models.Model):
+    """
+    Represents one question-selection session.
+
+    The session stores the student's selection criteria and the
+    student's exam year at the moment the session starts.
+    """
+
+    MODE_CHOICES = [
+        ("practice", "Practice"),
+        ("normal_exam", "Normal Exam"),
+    ]
+
+    SOURCE_TYPE_CHOICES = [
+        ("all", "All Questions"),
+        ("past_question", "Past Questions"),
+        ("model_question", "Model Questions"),
+    ]
+
+    ORDER_CHOICES = [
+        ("sequential", "Sequential"),
+        ("random", "Random"),
+    ]
+
+    STATUS_CHOICES = [
+        ("in_progress", "In Progress"),
+        ("submitted", "Submitted"),
+        ("abandoned", "Abandoned"),
+    ]
+
+    student = models.ForeignKey(
+        StudentProfile,
+        on_delete=models.CASCADE,
+        related_name="practice_sessions",
+    )
+
+    exam_year = models.ForeignKey(
+        ExamYear,
+        on_delete=models.PROTECT,
+        related_name="practice_sessions",
+    )
+
+    mode = models.CharField(
+        max_length=20,
+        choices=MODE_CHOICES,
+        default="practice",
+    )
+
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="practice_sessions",
+    )
+
+    topic = models.ForeignKey(
+        Topic,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="practice_sessions",
+    )
+
+    subtopic = models.ForeignKey(
+        Subtopic,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="practice_sessions",
+    )
+
+    source_type = models.CharField(
+        max_length=20,
+        choices=SOURCE_TYPE_CHOICES,
+        default="all",
+    )
+
+    source_year = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+
+    difficulty = models.CharField(
+        max_length=10,
+        choices=Question.DIFFICULTY_CHOICES,
+        null=True,
+        blank=True,
+    )
+
+    question_count = models.PositiveIntegerField()
+
+    order_mode = models.CharField(
+        max_length=20,
+        choices=ORDER_CHOICES,
+        default="random",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="in_progress",
+    )
+
+    started_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    submitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    score = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return (
+            f"{self.student.user.username} - "
+            f"{self.mode} - "
+            f"{self.started_at:%Y-%m-%d %H:%M}"
+        )
+
+
+class PracticeSessionQuestion(models.Model):
+    """
+    Stores the exact questions selected for one PracticeSession.
+
+    The position field permanently determines the order in which
+    questions appear during that session.
+    """
+
+    session = models.ForeignKey(
+        PracticeSession,
+        on_delete=models.CASCADE,
+        related_name="session_questions",
+    )
+
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.PROTECT,
+        related_name="practice_session_questions",
+    )
+
+    position = models.PositiveIntegerField()
+
+    selected_option = models.CharField(
+        max_length=1,
+        choices=Question.CORRECT_OPTION_CHOICES,
+        null=True,
+        blank=True,
+    )
+
+    answered_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    is_correct = models.BooleanField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ["position"]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "question"],
+                name="unique_question_per_practice_session",
+            ),
+            models.UniqueConstraint(
+                fields=["session", "position"],
+                name="unique_position_per_practice_session",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.session.student.user.username} - "
+            f"Question {self.position + 1}"
+        )

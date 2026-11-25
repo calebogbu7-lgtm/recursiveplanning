@@ -1,18 +1,25 @@
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .forms import StudentRegistrationForm
+from .forms import (
+    PracticeSelectionForm,
+    StudentRegistrationForm,
+)
 from .models import (
     PracticeAttempt,
+    PracticeSession,
+    PracticeSessionQuestion,
     Question,
     StudentProfile,
     Subject,
     Subtopic,
     Topic,
 )
+from .services.question_selector import select_questions
 
 
 def home(request):
@@ -274,6 +281,138 @@ def practice(request):
 
 
 @login_required(login_url="student_login")
+def practice_setup(request):
+    """
+    Create a new flexible practice session.
+
+    This is the new practice-selection flow.
+
+    The student's exam year always comes from StudentProfile.
+    It is never supplied by the student and is never hardcoded.
+    """
+
+    profile = get_object_or_404(
+        StudentProfile.objects.select_related(
+            "exam_year"
+        ),
+        user=request.user,
+    )
+
+    exam_year = profile.exam_year.year
+
+    if request.method == "POST":
+        form = PracticeSelectionForm(
+            request.POST,
+            exam_year=exam_year,
+        )
+
+        if form.is_valid():
+            subject = form.cleaned_data["subject"]
+            topic = form.cleaned_data["topic"]
+            subtopic = form.cleaned_data["subtopic"]
+            source_type = form.cleaned_data["source_type"]
+            source_year = form.cleaned_data["source_year"]
+            difficulty = form.cleaned_data["difficulty"]
+            number_of_questions = form.cleaned_data[
+                "number_of_questions"
+            ]
+            order = form.cleaned_data["order"]
+
+            try:
+                selected_questions = select_questions(
+                    syllabus_year=exam_year,
+                    subject=subject,
+                    topic=topic,
+                    subtopic=subtopic,
+                    source_type=source_type,
+                    source_year=source_year,
+                    difficulty=difficulty,
+                    number_of_questions=number_of_questions,
+                    order=order,
+                )
+
+            except ValueError as error:
+                form.add_error(
+                    "number_of_questions",
+                    str(error),
+                )
+
+            else:
+                with transaction.atomic():
+                    session = PracticeSession.objects.create(
+                        student=profile,
+                        exam_year=profile.exam_year,
+                        mode="practice",
+                        subject=subject,
+                        topic=topic,
+                        subtopic=subtopic,
+                        source_type=(
+                            source_type or "all"
+                        ),
+                        source_year=source_year,
+                        difficulty=(
+                            difficulty or None
+                        ),
+                        question_count=len(
+                            selected_questions
+                        ),
+                        order_mode=order,
+                    )
+
+                    PracticeSessionQuestion.objects.bulk_create(
+                        [
+                            PracticeSessionQuestion(
+                                session=session,
+                                question=question,
+                                position=position,
+                            )
+                            for position, question in enumerate(
+                                selected_questions
+                            )
+                        ]
+                    )
+
+                messages.success(
+                    request,
+                    (
+                        f"Practice session created with "
+                        f"{len(selected_questions)} "
+                        f"question(s)."
+                    ),
+                )
+
+                return render(
+                    request,
+                    "core/practice_setup.html",
+                    {
+                        "form": PracticeSelectionForm(
+                            exam_year=exam_year,
+                        ),
+                        "exam_year": exam_year,
+                        "session": session,
+                        "selected_questions": (
+                            selected_questions
+                        ),
+                        "session_created": True,
+                    },
+                )
+
+    else:
+        form = PracticeSelectionForm(
+            exam_year=exam_year,
+        )
+
+    return render(
+        request,
+        "core/practice_setup.html",
+        {
+            "form": form,
+            "exam_year": exam_year,
+        },
+    )
+
+
+@login_required(login_url="student_login")
 def subject_detail(request, subject_id):
     profile = get_object_or_404(
         StudentProfile,
@@ -417,7 +556,9 @@ def subtopic_detail(request, subtopic_id):
                 question_id in valid_question_ids
                 and selected_option in {"A", "B", "C", "D"}
             ):
-                practice_data["answers"][question_id] = selected_option
+                practice_data["answers"][question_id] = (
+                    selected_option
+                )
 
             current_index = practice_data["current_index"]
 
@@ -468,7 +609,9 @@ def subtopic_detail(request, subtopic_id):
                 question_id in valid_question_ids
                 and selected_option in {"A", "B", "C", "D"}
             ):
-                practice_data["answers"][question_id] = selected_option
+                practice_data["answers"][question_id] = (
+                    selected_option
+                )
 
             unanswered = [
                 question
