@@ -1,0 +1,102 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+
+<h1>Practice Setup</h1>
+
+<p>
+    JAMB Exam Year:
+    <strong>{{ exam_year }}</strong>
+</p>
+
+<p>
+    Choose what you want to practise.
+</p>
+
+<form method="post">
+    {% csrf_token %}
+
+    {{ form.non_field_errors }}
+
+    <div>
+        {{ form.subject.label_tag }}
+        {{ form.subject }}
+        {{ form.subject.errors }}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.topic.label_tag }}
+        {{ form.topic }}
+        {{ form.topic.errors }}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.subtopic.label_tag }}
+        {{ form.subtopic }}
+        {{ form.subtopic.errors }}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.source_type.label_tag }}
+        {{ form.source_type }}
+        {{ form.source_type.errors }}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.source_year.label_tag }}
+        {{ form.source_year }}
+        {{ form.source_year.errors }}
+
+        {% if form.source_year.help_text %}
+            <small>
+                {{ form.source_year.help_text }}
+            </small>
+        {% endif %}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.difficulty.label_tag }}
+        {{ form.difficulty }}
+        {{ form.difficulty.errors }}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.number_of_questions.label_tag }}
+        {{ form.number_of_questions }}
+        {{ form.number_of_questions.errors }}
+
+        {% if form.number_of_questions.help_text %}
+            <small>
+                {{ form.number_of_questions.help_text }}
+            </small>
+        {% endif %}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.order.label_tag }}
+        {{ form.order }}
+        {{ form.order.errors }}
+    </div>
+
+    <br>
+
+    <button type="submit">
+        Start Practice
+    </button>
+</form>
+
+{% endblock %}

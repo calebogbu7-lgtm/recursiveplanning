@@ -4,6 +4,7 @@ from .views import (
     home,
     practice,
     practice_results,
+    practice_setup,
     register,
     student_dashboard,
     student_login,
@@ -25,6 +26,13 @@ urlpatterns = [
 
     # Practice pages
     path("practice/", practice, name="practice"),
+
+    path(
+        "practice/setup/",
+        practice_setup,
+        name="practice_setup",
+    ),
+
     path(
         "practice/subject/<int:subject_id>/",
         subject_detail,

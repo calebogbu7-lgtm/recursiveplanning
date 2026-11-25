@@ -31,9 +31,11 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "reimagined-waddle-gx769j49wqwqcpvq6-8001.app.github.dev",
 ]
+
 CSRF_TRUSTED_ORIGINS = [
-    "https://localhost:8001"
+    "https://localhost:8001",
 ]
+
 
 # Application definition
 
@@ -93,16 +95,34 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "UserAttributeSimilarityValidator"
+        ),
+        "OPTIONS": {
+            "max_similarity": 0.8,
+        },
     },
     {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "MinimumLengthValidator"
+        ),
+        "OPTIONS": {
+            "min_length": 8,
+        },
     },
     {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "CommonPasswordValidator"
+        ),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "NumericPasswordValidator"
+        ),
     },
 ]
 

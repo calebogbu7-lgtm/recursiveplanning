@@ -37,7 +37,8 @@ def register(request):
         form = StudentRegistrationForm(request.POST)
 
         if form.is_valid():
-            form.save()
+            with transaction.atomic():
+                user = form.save()
 
             messages.success(
                 request,
@@ -75,6 +76,29 @@ def student_login(request):
         if user is not None:
             login(request, user)
 
+            # Admin/staff accounts belong to the Django admin
+            # and do not need a StudentProfile.
+            if user.is_staff:
+                return redirect("student_dashboard")
+
+            # Normal student accounts must have a StudentProfile.
+            if not StudentProfile.objects.filter(
+                user=user
+            ).exists():
+                logout(request)
+
+                messages.error(
+                    request,
+                    (
+                        "This student account does not have a "
+                        "student profile and exam year. Please "
+                        "contact the administrator before using "
+                        "the student platform."
+                    ),
+                )
+
+                return redirect("student_login")
+
             return redirect("student_dashboard")
 
         messages.error(
@@ -98,7 +122,9 @@ def student_logout(request):
 @login_required(login_url="student_login")
 def student_dashboard(request):
     profile = get_object_or_404(
-        StudentProfile,
+        StudentProfile.objects.select_related(
+            "exam_year",
+        ),
         user=request.user,
     )
 
@@ -256,7 +282,9 @@ def student_dashboard(request):
 @login_required(login_url="student_login")
 def practice(request):
     profile = get_object_or_404(
-        StudentProfile,
+        StudentProfile.objects.select_related(
+            "exam_year",
+        ),
         user=request.user,
     )
 
@@ -264,7 +292,7 @@ def practice(request):
 
     subjects = (
         Subject.objects.filter(
-            syllabus_versions__year=exam_year
+            syllabus_versions__year=exam_year,
         )
         .distinct()
         .order_by("name")
@@ -285,15 +313,13 @@ def practice_setup(request):
     """
     Create a new flexible practice session.
 
-    This is the new practice-selection flow.
-
     The student's exam year always comes from StudentProfile.
     It is never supplied by the student and is never hardcoded.
     """
 
     profile = get_object_or_404(
         StudentProfile.objects.select_related(
-            "exam_year"
+            "exam_year",
         ),
         user=request.user,
     )
@@ -415,7 +441,9 @@ def practice_setup(request):
 @login_required(login_url="student_login")
 def subject_detail(request, subject_id):
     profile = get_object_or_404(
-        StudentProfile,
+        StudentProfile.objects.select_related(
+            "exam_year",
+        ),
         user=request.user,
     )
 
@@ -442,7 +470,9 @@ def subject_detail(request, subject_id):
 @login_required(login_url="student_login")
 def topic_detail(request, topic_id):
     profile = get_object_or_404(
-        StudentProfile,
+        StudentProfile.objects.select_related(
+            "exam_year",
+        ),
         user=request.user,
     )
 
@@ -464,7 +494,9 @@ def topic_detail(request, topic_id):
 @login_required(login_url="student_login")
 def subtopic_detail(request, subtopic_id):
     profile = get_object_or_404(
-        StudentProfile,
+        StudentProfile.objects.select_related(
+            "exam_year",
+        ),
         user=request.user,
     )
 
@@ -758,7 +790,9 @@ def subtopic_detail(request, subtopic_id):
 @login_required(login_url="student_login")
 def practice_results(request, subtopic_id):
     profile = get_object_or_404(
-        StudentProfile,
+        StudentProfile.objects.select_related(
+            "exam_year",
+        ),
         user=request.user,
     )
 

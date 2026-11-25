@@ -4,16 +4,87 @@
 Create Account
 {% endblock %}
 
-
 {% block content %}
 
 <h2>Create Student Account</h2>
 
-<form method="post">
+<p>
+    Create your account to start preparing for your JAMB examination.
+</p>
+
+<form method="post" id="registration-form">
 
     {% csrf_token %}
 
-    {{ form.as_p }}
+    {{ form.non_field_errors }}
+
+    <div>
+        {{ form.full_name.label_tag }}
+        {{ form.full_name }}
+        {{ form.full_name.errors }}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.username.label_tag }}
+        {{ form.username }}
+
+        <small>
+            Use letters, numbers, @, ., +, - or _.
+            Spaces are not allowed.
+        </small>
+
+        <p
+            id="username-feedback"
+            role="status"
+            aria-live="polite"
+            style="color: #b45309;"
+        ></p>
+
+        {{ form.username.errors }}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.email.label_tag }}
+        {{ form.email }}
+        {{ form.email.errors }}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.exam_year.label_tag }}
+        {{ form.exam_year }}
+        {{ form.exam_year.errors }}
+
+        <small>
+            Select the year you intend to sit for JAMB,
+            not the year you create this account.
+        </small>
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.password1.label_tag }}
+        {{ form.password1 }}
+        {{ form.password1.help_text }}
+        {{ form.password1.errors }}
+    </div>
+
+    <br>
+
+    <div>
+        {{ form.password2.label_tag }}
+        {{ form.password2 }}
+        {{ form.password2.help_text }}
+        {{ form.password2.errors }}
+    </div>
+
+    <br>
 
     <button type="submit">
         Create Account
@@ -27,5 +98,41 @@ Create Account
         Log in
     </a>
 </p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const usernameInput = document.getElementById("id_username");
+    const feedback = document.getElementById("username-feedback");
+    const registrationForm = document.getElementById(
+        "registration-form"
+    );
+
+    if (!usernameInput || !feedback) {
+        return;
+    }
+
+    function checkUsername() {
+        if (/\s/.test(usernameInput.value)) {
+            feedback.textContent =
+                "Spaces aren't allowed in usernames. " +
+                "Try removing the space or using an underscore, " +
+                "for example: ojumyi_faith.";
+        } else {
+            feedback.textContent = "";
+        }
+    }
+
+    usernameInput.addEventListener("input", checkUsername);
+
+    registrationForm.addEventListener("submit", function (event) {
+        checkUsername();
+
+        if (/\s/.test(usernameInput.value)) {
+            event.preventDefault();
+            usernameInput.focus();
+        }
+    });
+});
+</script>
 
 {% endblock %}
