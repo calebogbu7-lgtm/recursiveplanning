@@ -1,4 +1,6 @@
 
+from datetime import timedelta
+
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -24,10 +26,7 @@ from .services.question_selector import select_questions
 
 
 def home(request):
-    return render(
-        request,
-        "core/home.html",
-    )
+    return render(request, "core/home.html")
 
 
 def register(request):
@@ -45,18 +44,14 @@ def register(request):
                 request,
                 "Your account has been created successfully. Please log in.",
             )
-
             return redirect("student_login")
-
     else:
         form = StudentRegistrationForm()
 
     return render(
         request,
         "core/register.html",
-        {
-            "form": form,
-        },
+        {"form": form},
     )
 
 
@@ -68,15 +63,8 @@ def student_login(request):
         return redirect("student_dashboard")
 
     if request.method == "POST":
-        identifier = request.POST.get(
-            "identifier",
-            "",
-        ).strip()
-
-        password = request.POST.get(
-            "password",
-            "",
-        )
+        identifier = request.POST.get("identifier", "").strip()
+        password = request.POST.get("password", "")
 
         user = authenticate(
             request,
@@ -86,9 +74,7 @@ def student_login(request):
 
         if user is None and identifier:
             email_user = (
-                User.objects.filter(
-                    email__iexact=identifier,
-                )
+                User.objects.filter(email__iexact=identifier)
                 .order_by("id")
                 .first()
             )
@@ -101,28 +87,21 @@ def student_login(request):
                 )
 
         if user is not None:
-            login(
-                request,
-                user,
-            )
+            login(request, user)
 
             if user.is_staff:
                 return redirect("admin:index")
 
-            if not StudentProfile.objects.filter(
-                user=user,
-            ).exists():
+            if not StudentProfile.objects.filter(user=user).exists():
                 logout(request)
 
                 messages.error(
                     request,
                     (
-                        "This student account does not have "
-                        "a student profile. Please contact "
-                        "the administrator."
+                        "This student account does not have a student "
+                        "profile. Please contact the administrator."
                     ),
                 )
-
                 return redirect("student_login")
 
             return redirect("student_dashboard")
@@ -132,10 +111,7 @@ def student_login(request):
             "Invalid username/email or password.",
         )
 
-    return render(
-        request,
-        "core/login.html",
-    )
+    return render(request, "core/login.html")
 
 
 def student_logout(request):
@@ -152,14 +128,6 @@ def student_dashboard(request):
         user=request.user,
     )
 
-    # --------------------------------------------------
-    # 1. Retrieve legacy subtopic practice attempts.
-    #
-    # These records also represent newer PracticeSessions
-    # that have a subtopic, because those sessions create
-    # a corresponding PracticeAttempt when submitted.
-    # --------------------------------------------------
-
     attempts = list(
         PracticeAttempt.objects.filter(
             student=profile,
@@ -173,17 +141,6 @@ def student_dashboard(request):
         )
         .order_by("-submitted_at")
     )
-
-    # --------------------------------------------------
-    # 2. Retrieve submitted sessions WITHOUT a subtopic.
-    #
-    # These sessions do not create PracticeAttempt
-    # compatibility records, so they must be included
-    # directly from PracticeSession.
-    #
-    # Sessions with a subtopic are deliberately excluded
-    # here to prevent double-counting.
-    # --------------------------------------------------
 
     sessions = list(
         PracticeSession.objects.filter(
@@ -200,10 +157,6 @@ def student_dashboard(request):
         )
         .order_by("-submitted_at")
     )
-
-    # --------------------------------------------------
-    # 3. Calculate overall performance.
-    # --------------------------------------------------
 
     completed_attempts = len(attempts) + len(sessions)
 
@@ -222,33 +175,16 @@ def student_dashboard(request):
         total_correct += session.score or 0
 
     accuracy = (
-        round(
-            (total_correct / total_questions) * 100,
-            1,
-        )
+        round((total_correct / total_questions) * 100, 1)
         if total_questions > 0
         else 0
     )
-
-    # --------------------------------------------------
-    # 4. Prepare subject, topic and history information.
-    # --------------------------------------------------
 
     subject_data = {}
     topic_data = {}
     practice_history = []
 
-    def add_performance(
-        subject,
-        topic,
-        score,
-        total,
-    ):
-        """
-        Add one completed activity to subject and topic
-        performance summaries.
-        """
-
+    def add_performance(subject, topic, score, total):
         if subject is not None:
             if subject.id not in subject_data:
                 subject_data[subject.id] = {
@@ -267,9 +203,7 @@ def student_dashboard(request):
                 topic_data[topic.id] = {
                     "name": topic.name,
                     "subject": (
-                        subject.name
-                        if subject is not None
-                        else "Unknown"
+                        subject.name if subject is not None else "Unknown"
                     ),
                     "attempts": 0,
                     "questions": 0,
@@ -280,35 +214,20 @@ def student_dashboard(request):
             topic_data[topic.id]["questions"] += total
             topic_data[topic.id]["correct"] += score
 
-    # --------------------------------------------------
-    # 5. Process legacy attempts and compatibility records.
-    # --------------------------------------------------
-
     for attempt in attempts:
         topic = attempt.subtopic.topic
-
-        subject = (
-            topic.syllabus_version.subject
-        )
+        subject = topic.syllabus_version.subject
 
         score = attempt.score or 0
         total = attempt.total_questions
 
         attempt_accuracy = (
-            round(
-                (score / total) * 100,
-                1,
-            )
+            round((score / total) * 100, 1)
             if total > 0
             else 0
         )
 
-        add_performance(
-            subject=subject,
-            topic=topic,
-            score=score,
-            total=total,
-        )
+        add_performance(subject, topic, score, total)
 
         practice_history.append(
             {
@@ -323,15 +242,8 @@ def student_dashboard(request):
             }
         )
 
-    # --------------------------------------------------
-    # 6. Process sessions without a subtopic.
-    # --------------------------------------------------
-
     for session in sessions:
         topic = session.topic
-
-        # Prefer the subject stored directly on the session.
-        # If it is absent, derive it from the selected topic.
         subject = session.subject
 
         if subject is None and topic is not None:
@@ -341,34 +253,20 @@ def student_dashboard(request):
         total = session.question_count
 
         session_accuracy = (
-            round(
-                (score / total) * 100,
-                1,
-            )
+            round((score / total) * 100, 1)
             if total > 0
             else 0
         )
 
-        add_performance(
-            subject=subject,
-            topic=topic,
-            score=score,
-            total=total,
-        )
+        add_performance(subject, topic, score, total)
 
         practice_history.append(
             {
                 "type": session.get_mode_display(),
                 "subject": (
-                    subject.name
-                    if subject is not None
-                    else "General Practice"
+                    subject.name if subject is not None else "General Practice"
                 ),
-                "topic": (
-                    topic.name
-                    if topic is not None
-                    else "—"
-                ),
+                "topic": topic.name if topic is not None else "—",
                 "subtopic": "—",
                 "score": score,
                 "total_questions": total,
@@ -377,43 +275,26 @@ def student_dashboard(request):
             }
         )
 
-    # --------------------------------------------------
-    # 7. Calculate subject performance percentages.
-    # --------------------------------------------------
-
     subject_performance = []
 
     for data in subject_data.values():
         data["accuracy"] = (
-            round(
-                (data["correct"] / data["questions"]) * 100,
-                1,
-            )
+            round((data["correct"] / data["questions"]) * 100, 1)
             if data["questions"] > 0
             else 0
         )
-
         subject_performance.append(data)
-
-    # --------------------------------------------------
-    # 8. Calculate topic performance percentages.
-    # --------------------------------------------------
 
     topic_performance = []
 
     for data in topic_data.values():
         data["accuracy"] = (
-            round(
-                (data["correct"] / data["questions"]) * 100,
-                1,
-            )
+            round((data["correct"] / data["questions"]) * 100, 1)
             if data["questions"] > 0
             else 0
         )
-
         topic_performance.append(data)
 
-    # Highest accuracy first.
     subject_performance.sort(
         key=lambda item: item["accuracy"],
         reverse=True,
@@ -424,7 +305,6 @@ def student_dashboard(request):
         reverse=True,
     )
 
-    # Newest activity first.
     practice_history.sort(
         key=lambda item: item["submitted_at"],
         reverse=True,
@@ -462,17 +342,25 @@ def practice_setup(request):
                 user=request.user,
             )
 
-            exam_year = form.cleaned_data["exam_year"]
+            mode = form.cleaned_data["mode"]
             subject = form.cleaned_data["subject"]
             topic = form.cleaned_data["topic"]
             subtopic = form.cleaned_data["subtopic"]
             source_type = form.cleaned_data["source_type"]
             source_year = form.cleaned_data["source_year"]
-            difficulty = form.cleaned_data["difficulty"]
+
+            difficulty = form.cleaned_data["difficulty"] or "all"
+
             number_of_questions = form.cleaned_data[
                 "number_of_questions"
             ]
+
             order = form.cleaned_data["order"]
+
+            # An empty duration must become None, not an empty string.
+            duration_minutes = (
+                form.cleaned_data["duration_minutes"] or None
+            )
 
             try:
                 selected_questions = select_questions(
@@ -493,50 +381,82 @@ def practice_setup(request):
                 )
 
             else:
-                with transaction.atomic():
-                    session = PracticeSession.objects.create(
-                        student=profile,
-                        exam_year=exam_year,
-                        mode="practice",
-                        subject=subject,
-                        topic=topic,
-                        subtopic=subtopic,
-                        source_type=source_type or "all",
-                        source_year=source_year,
-                        difficulty=difficulty or None,
-                        question_count=len(
-                            selected_questions
+                if not selected_questions:
+                    form.add_error(
+                        "number_of_questions",
+                        (
+                            "No published questions are available "
+                            "for the selected criteria."
                         ),
-                        order_mode=order,
-                        status="in_progress",
                     )
 
-                    PracticeSessionQuestion.objects.bulk_create(
-                        [
-                            PracticeSessionQuestion(
-                                session=session,
-                                question=question,
-                                position=position,
-                            )
-                            for position, question in enumerate(
-                                selected_questions
-                            )
-                        ]
+                else:
+                    now = timezone.now()
+                    ends_at = None
+
+                    if mode == "normal_exam":
+                        ends_at = now + timedelta(
+                            minutes=duration_minutes
+                        )
+
+                    with transaction.atomic():
+                        session = PracticeSession.objects.create(
+                            student=profile,
+                            exam_year=None,
+                            mode=mode,
+                            subject=subject,
+                            topic=topic,
+                            subtopic=(
+                                subtopic
+                                if mode == "practice"
+                                else None
+                            ),
+                            source_type=source_type or "all",
+                            source_year=source_year,
+                            difficulty=(
+                                difficulty
+                                if difficulty != "all"
+                                else None
+                            ),
+                            question_count=len(selected_questions),
+                            order_mode=order,
+                            duration_minutes=duration_minutes,
+                            ends_at=ends_at,
+                            status="in_progress",
+                        )
+
+                        PracticeSessionQuestion.objects.bulk_create(
+                            [
+                                PracticeSessionQuestion(
+                                    session=session,
+                                    question=question,
+                                    position=position,
+                                )
+                                for position, question in enumerate(
+                                    selected_questions
+                                )
+                            ]
+                        )
+
+                    mode_label = (
+                        "Normal Exam"
+                        if mode == "normal_exam"
+                        else "Practice"
                     )
 
-                messages.success(
-                    request,
-                    (
-                        f"Practice session started with "
-                        f"{len(selected_questions)} question(s)."
-                    ),
-                )
+                    messages.success(
+                        request,
+                        (
+                            f"{mode_label} session started with "
+                            f"{len(selected_questions)} question(s)."
+                        ),
+                    )
 
-                return redirect(
-                    "practice_session_question",
-                    session_id=session.id,
-                    position=1,
-                )
+                    return redirect(
+                        "practice_session_question",
+                        session_id=session.id,
+                        position=1,
+                    )
 
     else:
         form = PracticeSelectionForm()
@@ -544,18 +464,12 @@ def practice_setup(request):
     return render(
         request,
         "core/practice_setup.html",
-        {
-            "form": form,
-        },
+        {"form": form},
     )
 
 
 @login_required(login_url="student_login")
-def practice_session_question(
-    request,
-    session_id,
-    position,
-):
+def practice_session_question(request, session_id, position):
     profile = get_object_or_404(
         StudentProfile,
         user=request.user,
@@ -581,12 +495,17 @@ def practice_session_question(
     if session.status != "in_progress":
         return redirect("practice_setup")
 
+    if (
+        session.mode == "normal_exam"
+        and session.ends_at is not None
+        and timezone.now() >= session.ends_at
+    ):
+        return submit_practice_session(request, session)
+
     questions = list(
         session.session_questions.select_related(
             "question",
-        ).order_by(
-            "position",
-        )
+        ).order_by("position")
     )
 
     if not questions:
@@ -596,9 +515,7 @@ def practice_session_question(
         )
 
         session.status = "abandoned"
-        session.save(
-            update_fields=["status"],
-        )
+        session.save(update_fields=["status"])
 
         return redirect("practice_setup")
 
@@ -616,63 +533,53 @@ def practice_session_question(
     if request.method == "POST":
         action = request.POST.get("action")
 
-        # Save the current answer before navigation or submission.
-        if action in {
-            "next",
-            "previous",
-            "submit",
-        }:
-            selected_option = request.POST.get(
-                "answer",
-            )
+        if action in {"next", "previous", "submit"}:
+            selected_option = request.POST.get("answer")
 
-            if selected_option in {
-                "A",
-                "B",
-                "C",
-                "D",
-            }:
+            if selected_option in {"A", "B", "C", "D"}:
                 current.selected_option = selected_option
                 current.answered_at = timezone.now()
-                current.is_correct = (
-                    selected_option
-                    == current.question.correct_option
-                )
 
-                current.save(
-                    update_fields=[
-                        "selected_option",
-                        "answered_at",
-                        "is_correct",
-                    ]
-                )
+                if session.mode == "practice":
+                    current.is_correct = (
+                        selected_option
+                        == current.question.correct_option
+                    )
+
+                    current.save(
+                        update_fields=[
+                            "selected_option",
+                            "answered_at",
+                            "is_correct",
+                        ]
+                    )
+
+                else:
+                    current.save(
+                        update_fields=[
+                            "selected_option",
+                            "answered_at",
+                        ]
+                    )
 
         if action == "previous":
             return redirect(
                 "practice_session_question",
                 session_id=session.id,
-                position=max(
-                    1,
-                    position - 1,
-                ),
+                position=max(1, position - 1),
             )
 
         if action == "next":
             return redirect(
                 "practice_session_question",
                 session_id=session.id,
-                position=min(
-                    total_questions,
-                    position + 1,
-                ),
+                position=min(total_questions, position + 1),
             )
 
         if action == "submit":
-            unanswered_count = (
-                session.session_questions.filter(
-                    selected_option__isnull=True,
-                ).count()
-            )
+            unanswered_count = session.session_questions.filter(
+                selected_option__isnull=True,
+            ).count()
 
             if unanswered_count > 0:
                 return render(
@@ -686,19 +593,16 @@ def practice_session_question(
                         "questions": questions,
                         "unanswered_count": unanswered_count,
                         "show_submit_confirmation": True,
+                        "remaining_seconds": get_remaining_seconds(
+                            session
+                        ),
                     },
                 )
 
-            return submit_practice_session(
-                request,
-                session,
-            )
+            return submit_practice_session(request, session)
 
         if action == "confirm_submit":
-            return submit_practice_session(
-                request,
-                session,
-            )
+            return submit_practice_session(request, session)
 
     return render(
         request,
@@ -709,23 +613,28 @@ def practice_session_question(
             "position": position,
             "total_questions": total_questions,
             "questions": questions,
-            "unanswered_count": (
-                session.session_questions.filter(
-                    selected_option__isnull=True,
-                ).count()
-            ),
+            "unanswered_count": session.session_questions.filter(
+                selected_option__isnull=True,
+            ).count(),
             "show_submit_confirmation": False,
+            "remaining_seconds": get_remaining_seconds(session),
         },
     )
 
 
-def submit_practice_session(
-    request,
-    session,
-):
+def get_remaining_seconds(session):
+    if session.mode != "normal_exam" or session.ends_at is None:
+        return None
+
+    remaining = (
+        session.ends_at - timezone.now()
+    ).total_seconds()
+
+    return max(0, int(remaining))
+
+
+def submit_practice_session(request, session):
     with transaction.atomic():
-        # Lock and reload the session so two submission requests
-        # cannot both create history records.
         session = PracticeSession.objects.select_for_update().get(
             id=session.id,
         )
@@ -742,9 +651,7 @@ def submit_practice_session(
         questions = list(
             session.session_questions.select_related(
                 "question",
-            ).order_by(
-                "position",
-            )
+            ).order_by("position")
         )
 
         score = 0
@@ -777,7 +684,6 @@ def submit_practice_session(
             ]
         )
 
-        # Preserve the older subtopic-specific history system.
         if session.subtopic is not None:
             PracticeAttempt.objects.create(
                 student=session.student,
@@ -794,10 +700,7 @@ def submit_practice_session(
 
 
 @login_required(login_url="student_login")
-def practice_session_results(
-    request,
-    session_id,
-):
+def practice_session_results(request, session_id):
     profile = get_object_or_404(
         StudentProfile,
         user=request.user,
@@ -824,9 +727,7 @@ def practice_session_results(
     session_questions = list(
         session.session_questions.select_related(
             "question",
-        ).order_by(
-            "position",
-        )
+        ).order_by("position")
     )
 
     results = []
@@ -843,21 +744,18 @@ def practice_session_results(
 
         results.append(
             {
-                "position": session_question.position + 1,
+                "position": session_question.position,
                 "question": question,
                 "selected_option": session_question.selected_option,
                 "selected_text": (
-                    option_text.get(
-                        session_question.selected_option,
-                    )
+                    option_text.get(session_question.selected_option)
                     if session_question.selected_option
                     else None
                 ),
                 "correct_option": question.correct_option,
-                "correct_text": option_text[
-                    question.correct_option
-                ],
+                "correct_text": option_text[question.correct_option],
                 "is_correct": session_question.is_correct,
+                "explanation": question.explanation,
             }
         )
 
@@ -865,10 +763,7 @@ def practice_session_results(
     score = session.score or 0
 
     accuracy = (
-        round(
-            (score / total_questions) * 100,
-            1,
-        )
+        round((score / total_questions) * 100, 1)
         if total_questions > 0
         else 0
     )
@@ -877,6 +772,16 @@ def practice_session_results(
         1
         for item in session_questions
         if item.selected_option is None
+    )
+
+    correct_count = sum(
+        1
+        for item in session_questions
+        if item.is_correct
+    )
+
+    incorrect_count = (
+        total_questions - correct_count - unanswered
     )
 
     return render(
@@ -889,6 +794,8 @@ def practice_session_results(
             "total_questions": total_questions,
             "accuracy": accuracy,
             "unanswered": unanswered,
+            "correct_count": correct_count,
+            "incorrect_count": incorrect_count,
         },
     )
 
@@ -903,9 +810,7 @@ def subject_detail(request, subject_id):
     return render(
         request,
         "core/subject_detail.html",
-        {
-            "subject": subject,
-        },
+        {"subject": subject},
     )
 
 
@@ -919,9 +824,7 @@ def topic_detail(request, topic_id):
     return render(
         request,
         "core/topic_detail.html",
-        {
-            "topic": topic,
-        },
+        {"topic": topic},
     )
 
 
@@ -954,17 +857,13 @@ def subtopic_detail(request, subtopic_id):
         )
 
     session_key = f"practice_{subtopic.id}"
-
     practice_data = request.session.get(session_key)
 
     if practice_data and (
         practice_data.get("user_id") != request.user.id
         or practice_data.get("subtopic_id") != subtopic.id
     ):
-        request.session.pop(
-            session_key,
-            None,
-        )
+        request.session.pop(session_key, None)
         practice_data = None
 
     if practice_data and practice_data.get("submitted"):
@@ -1009,17 +908,14 @@ def subtopic_detail(request, subtopic_id):
             selected_option = request.POST.get("answer")
 
             valid_question_ids = {
-                str(question.id)
-                for question in questions
+                str(question.id) for question in questions
             }
 
             if (
                 question_id in valid_question_ids
                 and selected_option in {"A", "B", "C", "D"}
             ):
-                practice_data["answers"][question_id] = (
-                    selected_option
-                )
+                practice_data["answers"][question_id] = selected_option
 
             current_index = practice_data["current_index"]
 
@@ -1028,15 +924,10 @@ def subtopic_detail(request, subtopic_id):
             else:
                 current_index -= 1
 
-            current_index = max(
+            practice_data["current_index"] = max(
                 0,
-                min(
-                    current_index,
-                    len(questions) - 1,
-                ),
+                min(current_index, len(questions) - 1),
             )
-
-            practice_data["current_index"] = current_index
 
             request.session[session_key] = practice_data
 
@@ -1056,27 +947,27 @@ def subtopic_detail(request, subtopic_id):
             selected_option = request.POST.get("answer")
 
             valid_question_ids = {
-                str(question.id)
-                for question in questions
+                str(question.id) for question in questions
             }
 
             if (
                 question_id in valid_question_ids
                 and selected_option in {"A", "B", "C", "D"}
             ):
-                practice_data["answers"][question_id] = (
-                    selected_option
-                )
+                practice_data["answers"][question_id] = selected_option
 
             unanswered = [
                 question
                 for question in questions
-                if str(question.id)
-                not in practice_data["answers"]
+                if str(question.id) not in practice_data["answers"]
             ]
 
             if unanswered and request.POST.get("confirm") != "yes":
                 request.session[session_key] = practice_data
+
+                current_question = questions[
+                    practice_data["current_index"]
+                ]
 
                 return render(
                     request,
@@ -1084,21 +975,11 @@ def subtopic_detail(request, subtopic_id):
                     {
                         "subtopic": subtopic,
                         "questions": questions,
-                        "current_question": questions[
-                            practice_data["current_index"]
-                        ],
-                        "current_index": practice_data[
-                            "current_index"
-                        ],
+                        "current_question": current_question,
+                        "current_index": practice_data["current_index"],
                         "total_questions": len(questions),
-                        "selected_answer": practice_data[
-                            "answers"
-                        ].get(
-                            str(
-                                questions[
-                                    practice_data["current_index"]
-                                ].id
-                            )
+                        "selected_answer": practice_data["answers"].get(
+                            str(current_question.id)
                         ),
                         "practice_started": True,
                         "show_submit_confirmation": True,
@@ -1106,15 +987,12 @@ def subtopic_detail(request, subtopic_id):
                     },
                 )
 
-            score = 0
-
-            for question in questions:
-                selected_answer = practice_data["answers"].get(
-                    str(question.id)
-                )
-
-                if selected_answer == question.correct_option:
-                    score += 1
+            score = sum(
+                1
+                for question in questions
+                if practice_data["answers"].get(str(question.id))
+                == question.correct_option
+            )
 
             attempt_id = practice_data.get("attempt_id")
 
@@ -1139,7 +1017,6 @@ def subtopic_detail(request, subtopic_id):
                 )
 
             practice_data["submitted"] = True
-
             request.session[session_key] = practice_data
 
             return redirect(
@@ -1148,10 +1025,7 @@ def subtopic_detail(request, subtopic_id):
             )
 
         if action == "restart":
-            request.session.pop(
-                session_key,
-                None,
-            )
+            request.session.pop(session_key, None)
 
             return redirect(
                 "subtopic_detail",
@@ -1176,18 +1050,15 @@ def subtopic_detail(request, subtopic_id):
             },
         )
 
-    current_index = practice_data["current_index"]
-
     current_index = max(
         0,
         min(
-            current_index,
+            practice_data["current_index"],
             len(questions) - 1,
         ),
     )
 
     practice_data["current_index"] = current_index
-
     request.session[session_key] = practice_data
 
     current_question = questions[current_index]
@@ -1228,7 +1099,6 @@ def practice_results(request, subtopic_id):
     )
 
     session_key = f"practice_{subtopic.id}"
-
     practice_data = request.session.get(session_key)
 
     if not practice_data or (
@@ -1242,22 +1112,17 @@ def practice_results(request, subtopic_id):
         )
 
     answers = practice_data["answers"]
-
     results = []
     score = 0
 
     for question in questions:
-        selected_option = answers.get(
-            str(question.id)
-        )
+        selected_option = answers.get(str(question.id))
 
         if selected_option == question.correct_option:
             score += 1
             result_status = "correct"
-
         elif selected_option is None:
             result_status = "unanswered"
-
         else:
             result_status = "incorrect"
 
@@ -1278,9 +1143,7 @@ def practice_results(request, subtopic_id):
                     else None
                 ),
                 "correct_option": question.correct_option,
-                "correct_text": option_text[
-                    question.correct_option
-                ],
+                "correct_text": option_text[question.correct_option],
                 "status": result_status,
             }
         )

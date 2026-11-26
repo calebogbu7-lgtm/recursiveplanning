@@ -7,31 +7,14 @@ from .models import (
     Question,
     StudentProfile,
     Subject,
-    Topic,
     Subtopic,
+    Topic,
 )
 
 
 class StudentRegistrationForm(UserCreationForm):
-    full_name = forms.CharField(
-        max_length=150,
-        label="Full Name",
-        help_text="Enter your full name.",
-    )
-
-    username = forms.CharField(
-        max_length=150,
-        label="Username",
-        help_text=(
-            "Use letters, numbers, @, ., +, - or _. "
-            "Spaces are not allowed."
-        ),
-    )
-
-    email = forms.EmailField(
-        required=True,
-        label="Email Address",
-    )
+    full_name = forms.CharField(max_length=150)
+    email = forms.EmailField()
 
     class Meta:
         model = User
@@ -43,60 +26,31 @@ class StudentRegistrationForm(UserCreationForm):
             "password2",
         ]
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.fields["username"].widget.attrs.update(
-            {
-                "autocomplete": "username",
-            }
-        )
-
-        self.fields["email"].widget.attrs.update(
-            {
-                "autocomplete": "email",
-            }
-        )
-
-        self.fields["password1"].widget.attrs.update(
-            {
-                "autocomplete": "new-password",
-            }
-        )
-
-        self.fields["password2"].widget.attrs.update(
-            {
-                "autocomplete": "new-password",
-            }
-        )
-
     def clean_username(self):
-        username = self.cleaned_data["username"]
+        username = self.cleaned_data["username"].strip()
 
-        if any(character.isspace() for character in username):
+        if " " in username:
             raise forms.ValidationError(
-                "Username cannot contain spaces. "
-                "Please remove the spaces or use an underscore instead."
+                "Username cannot contain spaces."
             )
 
         if User.objects.filter(
             username__iexact=username
         ).exists():
             raise forms.ValidationError(
-                "That username is already taken. "
-                "Please choose another one."
+                "This username is already taken."
             )
 
         return username
 
     def clean_email(self):
-        email = self.cleaned_data["email"].strip().lower()
+        email = self.cleaned_data["email"].strip()
 
         if User.objects.filter(
             email__iexact=email
         ).exists():
             raise forms.ValidationError(
-                "An account with this email address already exists."
+                "An account with this email already exists."
             )
 
         return email
@@ -104,292 +58,222 @@ class StudentRegistrationForm(UserCreationForm):
     def save(self, commit=True):
         user = super().save(commit=False)
 
-        user.first_name = self.cleaned_data["full_name"]
-        user.email = self.cleaned_data["email"]
+        user.first_name = self.cleaned_data["full_name"].strip()
+        user.email = self.cleaned_data["email"].strip()
 
         if commit:
             user.save()
-
-            StudentProfile.objects.create(
-                user=user,
-            )
+            StudentProfile.objects.create(user=user)
 
         return user
 
 
 class PracticeSelectionForm(forms.Form):
+    MODE_CHOICES = [
+        ("practice", "Practice Mode"),
+        ("normal_exam", "Normal Exam Mode"),
+    ]
 
-    # ---------------------------------------------------------
-    # EXAM YEAR
-    # ---------------------------------------------------------
+    DURATION_CHOICES = [
+        (15, "15 minutes"),
+        (30, "30 minutes"),
+        (45, "45 minutes"),
+        (60, "60 minutes"),
+        (90, "90 minutes"),
+        (120, "120 minutes"),
+    ]
+
+    SOURCE_TYPE_CHOICES = [
+        ("all", "All Questions"),
+        ("past_question", "Past Questions"),
+        ("model_question", "Model Questions"),
+    ]
+
+    DIFFICULTY_CHOICES = [
+        ("", "All Difficulties"),
+        ("easy", "Easy"),
+        ("medium", "Medium"),
+        ("hard", "Hard"),
+    ]
+
+    ORDER_CHOICES = [
+        ("sequential", "Sequential"),
+        ("random", "Random"),
+    ]
+
+    mode = forms.ChoiceField(
+        choices=MODE_CHOICES,
+        initial="practice",
+    )
 
     exam_year = forms.ModelChoiceField(
         queryset=ExamYear.objects.all(),
-        empty_label="Select an exam year",
-        label="Exam Year",
+        required=False,
+        empty_label="Choose exam year (optional)",
     )
-
-    # ---------------------------------------------------------
-    # SUBJECT
-    # ---------------------------------------------------------
 
     subject = forms.ModelChoiceField(
-        queryset=Subject.objects.none(),
+        queryset=Subject.objects.all().order_by("name"),
         required=False,
-        empty_label="All Subjects",
-        label="Subject",
+        empty_label="All subjects",
     )
-
-    # ---------------------------------------------------------
-    # TOPIC
-    # ---------------------------------------------------------
 
     topic = forms.ModelChoiceField(
         queryset=Topic.objects.none(),
         required=False,
-        empty_label="All Topics",
-        label="Topic",
+        empty_label="All topics",
     )
-
-    # ---------------------------------------------------------
-    # SUBTOPIC
-    # ---------------------------------------------------------
 
     subtopic = forms.ModelChoiceField(
         queryset=Subtopic.objects.none(),
         required=False,
-        empty_label="All Subtopics",
-        label="Subtopic",
+        empty_label="All subtopics",
     )
-
-    # ---------------------------------------------------------
-    # QUESTION SOURCE
-    # ---------------------------------------------------------
 
     source_type = forms.ChoiceField(
-        choices=[
-            ("all", "All Questions"),
-            ("past_question", "Past Questions"),
-            ("model_question", "Model Questions"),
-        ],
-        required=False,
+        choices=SOURCE_TYPE_CHOICES,
         initial="all",
-        label="Question Source",
     )
-
-    # ---------------------------------------------------------
-    # QUESTION YEAR
-    # ---------------------------------------------------------
 
     source_year = forms.IntegerField(
         required=False,
         min_value=1900,
-        label="Question Year",
-        help_text=(
-            "Only use this when practising past questions "
-            "from a specific year."
-        ),
+        label="Past-question year",
     )
-
-    # ---------------------------------------------------------
-    # DIFFICULTY
-    # ---------------------------------------------------------
 
     difficulty = forms.ChoiceField(
-        choices=[
-            ("all", "All Difficulties"),
-            ("easy", "Easy"),
-            ("medium", "Medium"),
-            ("hard", "Hard"),
-        ],
+        choices=DIFFICULTY_CHOICES,
         required=False,
-        initial="all",
-        label="Difficulty",
     )
-
-    # ---------------------------------------------------------
-    # NUMBER OF QUESTIONS
-    # ---------------------------------------------------------
 
     number_of_questions = forms.IntegerField(
-        min_value=1,
         required=False,
-        label="Number of Questions",
-        help_text=(
-            "Leave blank to use all eligible questions."
-        ),
+        min_value=1,
+        label="Number of questions",
     )
-
-    # ---------------------------------------------------------
-    # QUESTION ORDER
-    # ---------------------------------------------------------
 
     order = forms.ChoiceField(
-        choices=[
-            ("sequential", "Sequential"),
-            ("random", "Random"),
-        ],
+        choices=ORDER_CHOICES,
         initial="random",
-        label="Question Order",
     )
 
-    # ---------------------------------------------------------
-    # INITIALIZATION AND DYNAMIC QUERYSETS
-    # ---------------------------------------------------------
+    duration_minutes = forms.TypedChoiceField(
+        choices=[("", "Choose duration")] + DURATION_CHOICES,
+        required=False,
+        coerce=lambda value: int(value) if value else None,
+        label="Exam duration",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        subject_id = None
-        topic_id = None
-
-        if self.is_bound:
-            subject_id = self.data.get("subject")
-            topic_id = self.data.get("topic")
-
-        else:
-            subject_id = self.initial.get("subject")
-            topic_id = self.initial.get("topic")
-
-        # ExamYear represents the student's target JAMB year.
-        # It is not the same as SyllabusVersion.year.
 
         published_questions = Question.objects.filter(
             status="published"
         )
 
-        # -----------------------------------------------------
-        # AVAILABLE SUBJECTS
-        # -----------------------------------------------------
+        self.fields["topic"].queryset = Topic.objects.filter(
+            syllabus_version__subject__in=Subject.objects.all()
+        ).distinct().order_by("name")
 
-        subject_ids = published_questions.values_list(
-            "subtopic__topic__syllabus_version__subject_id",
-            flat=True,
-        ).distinct()
+        self.fields["subtopic"].queryset = Subtopic.objects.filter(
+            topic__in=self.fields["topic"].queryset
+        ).distinct().order_by("name")
+
+        if self.is_bound:
+            subject_id = self.data.get("subject")
+            topic_id = self.data.get("topic")
+
+            if subject_id:
+                self.fields["topic"].queryset = (
+                    Topic.objects.filter(
+                        syllabus_version__subject_id=subject_id
+                    ).order_by("name")
+                )
+
+            if topic_id:
+                self.fields["subtopic"].queryset = (
+                    Subtopic.objects.filter(
+                        topic_id=topic_id
+                    ).order_by("name")
+                )
 
         self.fields["subject"].queryset = (
             Subject.objects.filter(
-                id__in=subject_ids
+                syllabus_versions__topics__subtopics__questions__in=(
+                    published_questions
+                )
             )
+            .distinct()
             .order_by("name")
         )
-
-        # -----------------------------------------------------
-        # AVAILABLE TOPICS
-        # -----------------------------------------------------
-
-        if subject_id:
-            topic_ids = published_questions.filter(
-                subtopic__topic__syllabus_version__subject_id=subject_id
-            ).values_list(
-                "subtopic__topic_id",
-                flat=True,
-            ).distinct()
-
-            self.fields["topic"].queryset = (
-                Topic.objects.filter(
-                    id__in=topic_ids
-                )
-                .order_by("name")
-            )
-
-        # -----------------------------------------------------
-        # AVAILABLE SUBTOPICS
-        # -----------------------------------------------------
-
-        if subject_id and topic_id:
-            subtopic_ids = published_questions.filter(
-                subtopic__topic_id=topic_id,
-                subtopic__topic__syllabus_version__subject_id=subject_id,
-            ).values_list(
-                "subtopic_id",
-                flat=True,
-            ).distinct()
-
-            self.fields["subtopic"].queryset = (
-                Subtopic.objects.filter(
-                    id__in=subtopic_ids
-                )
-                .order_by("name")
-            )
-
-    # ---------------------------------------------------------
-    # FORM VALIDATION
-    # ---------------------------------------------------------
 
     def clean(self):
         cleaned_data = super().clean()
 
+        mode = cleaned_data.get("mode")
         exam_year = cleaned_data.get("exam_year")
         subject = cleaned_data.get("subject")
         topic = cleaned_data.get("topic")
         subtopic = cleaned_data.get("subtopic")
-
         source_type = cleaned_data.get("source_type")
         source_year = cleaned_data.get("source_year")
+        duration = cleaned_data.get("duration_minutes")
 
-        if not exam_year:
-            return cleaned_data
-
-        # -----------------------------------------------------
-        # TOPIC VALIDATION
-        # -----------------------------------------------------
-
-        if topic:
-
+        if mode == "normal_exam":
             if not subject:
                 self.add_error(
-                    "topic",
-                    "Select a subject before selecting a topic.",
+                    "subject",
+                    "Choose a subject for Normal Exam Mode.",
                 )
 
-            elif topic.syllabus_version.subject_id != subject.id:
+            if not duration:
+                self.add_error(
+                    "duration_minutes",
+                    "Choose a duration for Normal Exam Mode.",
+                )
+
+        if topic and subject:
+            if topic.syllabus_version.subject_id != subject.id:
                 self.add_error(
                     "topic",
-                    (
-                        "The selected topic does not belong "
-                        "to the selected subject."
-                    ),
+                    "The selected topic does not belong to this subject.",
                 )
 
-        # -----------------------------------------------------
-        # SUBTOPIC VALIDATION
-        # -----------------------------------------------------
-
-        if subtopic:
-
-            if not topic:
+        if subtopic and topic:
+            if subtopic.topic_id != topic.id:
                 self.add_error(
                     "subtopic",
-                    "Select a topic before selecting a subtopic.",
+                    "The selected subtopic does not belong to this topic.",
                 )
 
-            elif subtopic.topic_id != topic.id:
-                self.add_error(
-                    "subtopic",
-                    (
-                        "The selected subtopic does not belong "
-                        "to the selected topic."
-                    ),
-                )
-
-        # -----------------------------------------------------
-        # QUESTION YEAR VALIDATION
-        # -----------------------------------------------------
-
-        if source_type == "past_question" and not source_year:
+        if subtopic and not topic:
             self.add_error(
-                "source_year",
-                "Enter the year of the past questions.",
+                "subtopic",
+                "Choose its topic first.",
             )
 
-        if source_type != "past_question" and source_year:
+        if topic and not subject:
+            self.add_error(
+                "topic",
+                "Choose its subject first.",
+            )
+
+        if source_type == "past_question" and not source_year:
+            # A source year is optional when selecting all past-question years.
+            pass
+
+        if source_type == "model_question" and source_year:
             self.add_error(
                 "source_year",
-                (
-                    "Question Year can only be used "
-                    "with Past Questions."
-                ),
+                "Model questions do not have a past-question year.",
+            )
+
+        if exam_year and not ExamYear.objects.filter(
+            pk=exam_year.pk
+        ).exists():
+            self.add_error(
+                "exam_year",
+                "Select a valid exam year.",
             )
 
         return cleaned_data

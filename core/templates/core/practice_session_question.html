@@ -1,194 +1,486 @@
+
 {% extends "core/base.html" %}
 
 {% block title %}
-Practice Question
+    {% if session.mode == "normal_exam" %}
+        Normal Exam
+    {% else %}
+        Practice
+    {% endif %}
 {% endblock %}
 
 {% block content %}
 
-<h1>Practice</h1>
+<div class="practice-session">
 
-<p>
-    Question {{ position }} of {{ total_questions }}
-</p>
+    <div class="session-header">
+        <div>
+            {% if session.mode == "normal_exam" %}
+                <h1>Normal Exam</h1>
+                <p>Answer the questions before the time runs out.</p>
+            {% else %}
+                <h1>Practice</h1>
+                <p>Work through the questions at your own pace.</p>
+            {% endif %}
+        </div>
 
-{% if session.subject %}
-    <p>
-        Subject: {{ session.subject.name }}
-    </p>
-{% endif %}
+        {% if session.mode == "normal_exam" %}
+            <div class="exam-timer">
+                <span>Time Remaining</span>
+                <strong id="timer">--:--</strong>
+            </div>
+        {% endif %}
+    </div>
 
-{% if session.exam_year %}
-    <p>
-        Exam Year: {{ session.exam_year.year }}
-    </p>
-{% endif %}
+    <div class="session-info">
+        <span>
+            Question {{ position }} of {{ total_questions }}
+        </span>
 
-<hr>
+        <span>
+            Unanswered:
+            <strong id="unanswered-count">
+                {{ unanswered_count }}
+            </strong>
+            / {{ total_questions }}
+        </span>
+    </div>
 
-<h2>
-    {{ current.question.text }}
-</h2>
+    {% if show_submit_confirmation %}
+        <div class="submit-confirmation">
+            <h3>Submit this session?</h3>
 
-<form method="post">
+            <p>
+                You still have
+                <strong>{{ unanswered_count }}</strong>
+                unanswered question{{ unanswered_count|pluralize }}.
+            </p>
 
-    {% csrf_token %}
+            <p>
+                Unanswered questions will be marked incorrect.
+            </p>
 
-    <p>
-        <label>
-            <input
-                type="radio"
-                name="answer"
-                value="A"
-                {% if current.selected_option == "A" %}checked{% endif %}
-            >
+            <form method="post">
+                {% csrf_token %}
 
-            A. {{ current.question.option_a }}
-        </label>
-    </p>
+                <input
+                    type="hidden"
+                    name="action"
+                    value="confirm_submit"
+                >
 
-    <p>
-        <label>
-            <input
-                type="radio"
-                name="answer"
-                value="B"
-                {% if current.selected_option == "B" %}checked{% endif %}
-            >
+                <button type="submit">
+                    Yes, Submit
+                </button>
 
-            B. {{ current.question.option_b }}
-        </label>
-    </p>
-
-    <p>
-        <label>
-            <input
-                type="radio"
-                name="answer"
-                value="C"
-                {% if current.selected_option == "C" %}checked{% endif %}
-            >
-
-            C. {{ current.question.option_c }}
-        </label>
-    </p>
-
-    <p>
-        <label>
-            <input
-                type="radio"
-                name="answer"
-                value="D"
-                {% if current.selected_option == "D" %}checked{% endif %}
-            >
-
-            D. {{ current.question.option_d }}
-        </label>
-    </p>
-
-    <br>
-
-    {% if position > 1 %}
-        <button
-            type="submit"
-            name="action"
-            value="previous"
-        >
-            Previous
-        </button>
+                <a
+                    href="{% url 'practice_session_question' session_id=session.id position=position %}"
+                >
+                    Continue
+                </a>
+            </form>
+        </div>
     {% endif %}
 
-    {% if position < total_questions %}
-        <button
-            type="submit"
-            name="action"
-            value="next"
-        >
-            Next
-        </button>
-    {% endif %}
+    <div class="question-card">
 
-    {% if position == total_questions %}
-        <button
-            type="submit"
-            name="action"
-            value="submit"
-        >
-            Submit Practice
-        </button>
-    {% endif %}
+        <div class="question-number">
+            Question {{ position }}
+        </div>
 
-</form>
+        <div class="question-text">
+            {{ current.question.text|linebreaks }}
+        </div>
 
-{% if unanswered_count > 0 %}
-    <p>
-        Unanswered questions: {{ unanswered_count }}
-    </p>
+        <form method="post" id="question-form">
+            {% csrf_token %}
+
+            <div class="options">
+
+                <label class="option">
+                    <input
+                        type="radio"
+                        name="answer"
+                        value="A"
+                        {% if current.selected_option == "A" %}
+                            checked
+                        {% endif %}
+                    >
+
+                    <span>
+                        <strong>A.</strong>
+                        {{ current.question.option_a }}
+                    </span>
+                </label>
+
+                <label class="option">
+                    <input
+                        type="radio"
+                        name="answer"
+                        value="B"
+                        {% if current.selected_option == "B" %}
+                            checked
+                        {% endif %}
+                    >
+
+                    <span>
+                        <strong>B.</strong>
+                        {{ current.question.option_b }}
+                    </span>
+                </label>
+
+                <label class="option">
+                    <input
+                        type="radio"
+                        name="answer"
+                        value="C"
+                        {% if current.selected_option == "C" %}
+                            checked
+                        {% endif %}
+                    >
+
+                    <span>
+                        <strong>C.</strong>
+                        {{ current.question.option_c }}
+                    </span>
+                </label>
+
+                <label class="option">
+                    <input
+                        type="radio"
+                        name="answer"
+                        value="D"
+                        {% if current.selected_option == "D" %}
+                            checked
+                        {% endif %}
+                    >
+
+                    <span>
+                        <strong>D.</strong>
+                        {{ current.question.option_d }}
+                    </span>
+                </label>
+
+            </div>
+
+            <div class="session-actions">
+
+                {% if position > 1 %}
+                    <button
+                        type="submit"
+                        name="action"
+                        value="previous"
+                    >
+                        Previous
+                    </button>
+                {% endif %}
+
+                {% if position < total_questions %}
+                    <button
+                        type="submit"
+                        name="action"
+                        value="next"
+                    >
+                        Next
+                    </button>
+                {% endif %}
+
+                {% if position == total_questions %}
+                    <button
+                        type="submit"
+                        name="action"
+                        value="submit"
+                        id="submit-button"
+                    >
+                        Submit
+                    </button>
+                {% endif %}
+
+            </div>
+        </form>
+
+    </div>
+
+</div>
+
+
+{% if session.mode == "normal_exam" and session.ends_at %}
+
+<script>
+(function () {
+
+    const timerElement =
+        document.getElementById("timer");
+
+    const form =
+        document.getElementById("question-form");
+
+    const endsAt =
+        new Date(
+            "{{ session.ends_at|date:'c' }}"
+        ).getTime();
+
+    let submitted = false;
+
+
+    function submitExamAutomatically() {
+
+        if (submitted) {
+            return;
+        }
+
+        submitted = true;
+
+        const input =
+            document.createElement("input");
+
+        input.type = "hidden";
+        input.name = "action";
+        input.value = "submit";
+
+        form.appendChild(input);
+
+        form.submit();
+    }
+
+
+    function updateTimer() {
+
+        const now = Date.now();
+
+        const remaining =
+            endsAt - now;
+
+
+        if (remaining <= 0) {
+
+            timerElement.textContent =
+                "00:00";
+
+            submitExamAutomatically();
+
+            return;
+        }
+
+
+        const totalSeconds =
+            Math.floor(
+                remaining / 1000
+            );
+
+
+        const minutes =
+            Math.floor(
+                totalSeconds / 60
+            );
+
+
+        const seconds =
+            totalSeconds % 60;
+
+
+        timerElement.textContent =
+            String(minutes).padStart(2, "0")
+            + ":"
+            + String(seconds).padStart(2, "0");
+    }
+
+
+    updateTimer();
+
+
+    const timerInterval =
+        setInterval(
+            function () {
+
+                updateTimer();
+
+                if (submitted) {
+                    clearInterval(timerInterval);
+                }
+
+            },
+            1000
+        );
+
+})();
+</script>
+
 {% endif %}
 
-{% if show_submit_confirmation %}
 
-    <hr>
+<style>
 
-    <h3>
-        You still have {{ unanswered_count }}
-        unanswered question(s).
-    </h3>
+.practice-session {
+    max-width: 900px;
+    margin: 0 auto;
+}
 
-    <p>
-        Are you sure you want to submit?
-    </p>
 
-    <form method="post">
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
 
-        {% csrf_token %}
 
-        <input
-            type="hidden"
-            name="confirm"
-            value="yes"
-        >
+.session-header h1 {
+    margin-bottom: 5px;
+}
 
-        <input
-            type="hidden"
-            name="action"
-            value="confirm_submit"
-        >
 
-        <button type="submit">
-            Yes, Submit
-        </button>
+.session-header p {
+    margin-top: 0;
+}
 
-    </form>
 
-    <form method="get">
-        <button type="submit">
-            Continue Practising
-        </button>
-    </form>
+.exam-timer {
+    min-width: 130px;
+    padding: 12px 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    text-align: center;
+}
 
-{% endif %}
 
-<hr>
+.exam-timer span {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
 
-<h3>Question Progress</h3>
 
-{% for session_question in questions %}
+.exam-timer strong {
+    font-size: 24px;
+}
 
-    <a
-        href="{% url 'practice_session_question' session_id=session.id position=session_question.position|add:1 %}"
-    >
-        Question {{ session_question.position|add:1 }}
-    </a>
 
-    {% if session_question.selected_option %}
-        ✓
-    {% else %}
-        ○
-    {% endif %}
+.session-info {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 12px 15px;
+    background: #f5f5f5;
+    border-radius: 8px;
+}
 
-    <br>
 
-{% endfor %}
+.question-card {
+    padding: 25px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #fff;
+}
+
+
+.question-number {
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+
+.question-text {
+    font-size: 18px;
+    line-height: 1.6;
+    margin-bottom: 25px;
+}
+
+
+.options {
+    display: grid;
+    gap: 12px;
+}
+
+
+.option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+
+.option:hover {
+    background: #f7f7f7;
+}
+
+
+.option input {
+    margin-top: 4px;
+}
+
+
+.session-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 25px;
+}
+
+
+.session-actions button {
+    padding: 10px 18px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+
+.submit-confirmation {
+    margin-bottom: 20px;
+    padding: 18px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fafafa;
+}
+
+
+.submit-confirmation h3 {
+    margin-top: 0;
+}
+
+
+.submit-confirmation form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+
+.submit-confirmation button,
+.submit-confirmation a {
+    padding: 9px 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    text-decoration: none;
+}
+
+
+@media (max-width: 600px) {
+
+    .session-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+
+    .session-info {
+        flex-direction: column;
+    }
+
+
+    .question-card {
+        padding: 18px;
+    }
+
+}
+
+</style>
 
 {% endblock %}

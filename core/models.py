@@ -1,4 +1,3 @@
-
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -183,13 +182,9 @@ class Question(models.Model):
 
         errors = {}
 
-        # Validate question text.
         if not self.text or not self.text.strip():
-            errors["text"] = (
-                "Question text cannot be empty."
-            )
+            errors["text"] = "Question text cannot be empty."
 
-        # Validate all four answer options.
         options = {
             "option_a": self.option_a,
             "option_b": self.option_b,
@@ -203,14 +198,11 @@ class Question(models.Model):
                     "All four answer options are required."
                 )
 
-        # Validate source information.
         if self.source_type == "past_question":
-
             if not self.source_year:
                 errors["source_year"] = (
                     "Past questions must have a source year."
                 )
-
             elif self.source_year < 1900:
                 errors["source_year"] = (
                     "Source year must be 1900 or later."
@@ -224,12 +216,8 @@ class Question(models.Model):
                 "Model questions cannot have a source year."
             )
 
-        # Published questions must have explanations.
         if self.status == "published":
-            if (
-                not self.explanation
-                or not self.explanation.strip()
-            ):
+            if not self.explanation or not self.explanation.strip():
                 errors["explanation"] = (
                     "Published questions must have an explanation."
                 )
@@ -289,9 +277,7 @@ class PracticeAttempt(models.Model):
         related_name="practice_attempts",
     )
 
-    started_at = models.DateTimeField(
-        auto_now_add=True
-    )
+    started_at = models.DateTimeField(auto_now_add=True)
 
     submitted_at = models.DateTimeField(
         null=True,
@@ -313,13 +299,6 @@ class PracticeAttempt(models.Model):
 
 
 class PracticeSession(models.Model):
-    """
-    Represents one question-selection session.
-
-    The session stores the student's selection criteria and the
-    exam year selected for that particular session.
-    """
-
     MODE_CHOICES = [
         ("practice", "Practice"),
         ("normal_exam", "Normal Exam"),
@@ -352,6 +331,8 @@ class PracticeSession(models.Model):
         ExamYear,
         on_delete=models.PROTECT,
         related_name="practice_sessions",
+        null=True,
+        blank=True,
     )
 
     mode = models.CharField(
@@ -410,15 +391,23 @@ class PracticeSession(models.Model):
         default="random",
     )
 
+    duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+
+    ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
         default="in_progress",
     )
 
-    started_at = models.DateTimeField(
-        auto_now_add=True,
-    )
+    started_at = models.DateTimeField(auto_now_add=True)
 
     submitted_at = models.DateTimeField(
         null=True,
@@ -442,13 +431,6 @@ class PracticeSession(models.Model):
 
 
 class PracticeSessionQuestion(models.Model):
-    """
-    Stores the exact questions selected for one PracticeSession.
-
-    The position field permanently determines the order in which
-    questions appear during that session.
-    """
-
     session = models.ForeignKey(
         PracticeSession,
         on_delete=models.CASCADE,

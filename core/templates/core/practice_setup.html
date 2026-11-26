@@ -1,115 +1,127 @@
 {% extends "core/base.html" %}
 
-{% block title %}
-Practice Setup
-{% endblock %}
-
 {% block content %}
+<div class="container">
+    <h1>Set Up Your Practice</h1>
 
-<h1>Practice Setup</h1>
+    <p>
+        Choose how you want to practise. You can select a subject,
+        narrow your questions by topic, and choose the question source.
+    </p>
 
-<p>
-    Choose the exam year and the type of practice you want.
-</p>
+    <form method="post">
+        {% csrf_token %}
 
-<form method="post">
-
-    {% csrf_token %}
-
-    {{ form.non_field_errors }}
-
-    <div>
-        {{ form.exam_year.label_tag }}
-        {{ form.exam_year }}
-        {{ form.exam_year.errors }}
-
-        <small>
-            Choose the JAMB exam year you want to practise.
-        </small>
-    </div>
-
-    <br>
-
-    <div>
-        {{ form.subject.label_tag }}
-        {{ form.subject }}
-        {{ form.subject.errors }}
-    </div>
-
-    <br>
-
-    <div>
-        {{ form.topic.label_tag }}
-        {{ form.topic }}
-        {{ form.topic.errors }}
-    </div>
-
-    <br>
-
-    <div>
-        {{ form.subtopic.label_tag }}
-        {{ form.subtopic }}
-        {{ form.subtopic.errors }}
-    </div>
-
-    <br>
-
-    <div>
-        {{ form.source_type.label_tag }}
-        {{ form.source_type }}
-        {{ form.source_type.errors }}
-    </div>
-
-    <br>
-
-    <div>
-        {{ form.source_year.label_tag }}
-        {{ form.source_year }}
-        {{ form.source_year.errors }}
-
-        {% if form.source_year.help_text %}
-            <small>
-                {{ form.source_year.help_text }}
-            </small>
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {{ form.non_field_errors }}
+            </div>
         {% endif %}
-    </div>
 
-    <br>
+        <div>
+            <label for="{{ form.mode.id_for_label }}">
+                Practice type
+            </label>
+            {{ form.mode }}
+            {{ form.mode.errors }}
+        </div>
 
-    <div>
-        {{ form.difficulty.label_tag }}
-        {{ form.difficulty }}
-        {{ form.difficulty.errors }}
-    </div>
+        <div>
+            <label for="{{ form.exam_year.id_for_label }}">
+                JAMB exam year (optional)
+            </label>
+            {{ form.exam_year }}
+            {{ form.exam_year.errors }}
+        </div>
 
-    <br>
+        <div>
+            <label for="{{ form.subject.id_for_label }}">
+                Subject
+            </label>
+            {{ form.subject }}
+            {{ form.subject.errors }}
+        </div>
 
-    <div>
-        {{ form.number_of_questions.label_tag }}
-        {{ form.number_of_questions }}
-        {{ form.number_of_questions.errors }}
+        <div>
+            <label for="{{ form.topic.id_for_label }}">
+                Topic
+            </label>
+            {{ form.topic }}
+            {{ form.topic.errors }}
+        </div>
 
-        {% if form.number_of_questions.help_text %}
-            <small>
-                {{ form.number_of_questions.help_text }}
-            </small>
-        {% endif %}
-    </div>
+        <div>
+            <label for="{{ form.subtopic.id_for_label }}">
+                Subtopic
+            </label>
+            {{ form.subtopic }}
+            {{ form.subtopic.errors }}
+        </div>
 
-    <br>
+        <div>
+            <label for="{{ form.source_type.id_for_label }}">
+                Question source
+            </label>
+            {{ form.source_type }}
+            {{ form.source_type.errors }}
+        </div>
 
-    <div>
-        {{ form.order.label_tag }}
-        {{ form.order }}
-        {{ form.order.errors }}
-    </div>
+        <div>
+            <label for="{{ form.source_year.id_for_label }}">
+                Past-question year
+            </label>
+            {{ form.source_year }}
+            {{ form.source_year.errors }}
+        </div>
 
-    <br>
+        <div>
+            <label for="{{ form.difficulty.id_for_label }}">
+                Difficulty
+            </label>
+            {{ form.difficulty }}
+            {{ form.difficulty.errors }}
+        </div>
 
-    <button type="submit">
-        Start Practice
-    </button>
+        <div>
+            <label for="{{ form.number_of_questions.id_for_label }}">
+                Number of questions
+            </label>
+            {{ form.number_of_questions }}
+            {{ form.number_of_questions.errors }}
+        </div>
 
-</form>
+        <div>
+            <label for="{{ form.order.id_for_label }}">
+                Question order
+            </label>
+            {{ form.order }}
+            {{ form.order.errors }}
+        </div>
 
+        <div id="duration-field">
+            <label for="{{ form.duration_minutes.id_for_label }}">
+                Normal Exam duration
+            </label>
+            {{ form.duration_minutes }}
+            {{ form.duration_minutes.errors }}
+        </div>
+
+        <button type="submit">
+            Start Session
+        </button>
+    </form>
+</div>
+
+<script>
+    const modeField = document.getElementById("id_mode");
+    const durationField = document.getElementById("duration-field");
+
+    function updateDurationVisibility() {
+        durationField.style.display =
+            modeField.value === "normal_exam" ? "block" : "none";
+    }
+
+    modeField.addEventListener("change", updateDurationVisibility);
+    updateDurationVisibility();
+</script>
 {% endblock %}

@@ -1,108 +1,102 @@
 {% extends "core/base.html" %}
 
-{% block title %}
-Practice Results
-{% endblock %}
-
 {% block content %}
+<div class="container">
+    <h1>Session Results</h1>
 
-<h1>Practice Results</h1>
-
-{% if session.exam_year %}
     <p>
-        Exam Year: {{ session.exam_year.year }}
-    </p>
-{% endif %}
-
-{% if session.subject %}
-    <p>
-        Subject: {{ session.subject.name }}
-    </p>
-{% endif %}
-
-<h2>
-    Score: {{ score }} / {{ total_questions }}
-</h2>
-
-<p>
-    Accuracy: {{ accuracy }}%
-</p>
-
-<p>
-    Unanswered: {{ unanswered }}
-</p>
-
-<hr>
-
-<h2>Review</h2>
-
-{% for result in results %}
-
-    <article>
-
-        <h3>
-            Question {{ result.position }}
-        </h3>
-
-        <p>
-            {{ result.question.text }}
-        </p>
-
-        <p>
-            Your answer:
-
-            {% if result.selected_option %}
-                {{ result.selected_option }}.
-                {{ result.selected_text }}
-            {% else %}
-                Unanswered
-            {% endif %}
-        </p>
-
-        <p>
-            Correct answer:
-
-            {{ result.correct_option }}.
-            {{ result.correct_text }}
-        </p>
-
-        {% if result.is_correct %}
-            <p>
-                Correct
-            </p>
-        {% elif result.selected_option %}
-            <p>
-                Incorrect
-            </p>
+        {% if session.mode == "normal_exam" %}
+            Normal Exam
         {% else %}
-            <p>
-                Unanswered
-            </p>
+            Practice Mode
         {% endif %}
+    </p>
 
-        {% if result.question.explanation %}
-            <p>
-                <strong>Explanation:</strong>
-                {{ result.question.explanation }}
-            </p>
-        {% endif %}
+    {% if session.subject %}
+        <p>Subject: {{ session.subject.name }}</p>
+    {% endif %}
 
-    </article>
+    {% if session.topic %}
+        <p>Topic: {{ session.topic.name }}</p>
+    {% endif %}
+
+    {% if session.exam_year %}
+        <p>Exam year: {{ session.exam_year.year }}</p>
+    {% endif %}
+
+    <section class="results-summary">
+        <h2>Your Performance</h2>
+
+        <p>
+            Score:
+            <strong>{{ score }} / {{ total_questions }}</strong>
+        </p>
+
+        <p>
+            Accuracy:
+            <strong>{{ accuracy }}%</strong>
+        </p>
+
+        <p>Correct: {{ correct_count }}</p>
+        <p>Incorrect: {{ incorrect_count }}</p>
+        <p>Unanswered: {{ unanswered }}</p>
+    </section>
 
     <hr>
 
-{% endfor %}
+    <h2>Question Review</h2>
 
-<p>
+    {% for result in results %}
+        <article class="question-result">
+            <h3>
+                Question {{ result.position }}
+            </h3>
+
+            <p>{{ result.question.text }}</p>
+
+            <p>
+                Your answer:
+                {% if result.selected_option %}
+                    {{ result.selected_option }}.
+                    {{ result.selected_text }}
+                {% else %}
+                    Not answered
+                {% endif %}
+            </p>
+
+            <p>
+                Correct answer:
+                {{ result.correct_option }}.
+                {{ result.correct_text }}
+            </p>
+
+            {% if result.status == "correct" %}
+                <p>Result: Correct</p>
+            {% elif result.status == "incorrect" %}
+                <p>Result: Incorrect</p>
+            {% else %}
+                <p>Result: Unanswered</p>
+            {% endif %}
+
+            {% if result.explanation %}
+                <div>
+                    <strong>Explanation:</strong>
+                    <p>{{ result.explanation }}</p>
+                </div>
+            {% endif %}
+        </article>
+
+        <hr>
+    {% empty %}
+        <p>No questions were recorded for this session.</p>
+    {% endfor %}
+
     <a href="{% url 'practice_setup' %}">
-        Start Another Practice
+        Start Another Session
     </a>
-</p>
 
-<p>
     <a href="{% url 'student_dashboard' %}">
         Return to Dashboard
     </a>
-</p>
-
+</div>
 {% endblock %}
