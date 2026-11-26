@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.core.exceptions import ValidationError
 
 from .models import (
     Category,
@@ -145,13 +146,35 @@ class QuestionAdmin(admin.ModelAdmin):
 
     @admin.action(description="Publish selected questions")
     def publish_questions(self, request, queryset):
-        count = queryset.update(status="published")
+        published_count = 0
+        failed_count = 0
 
-        self.message_user(
-            request,
-            f"{count} question(s) published successfully.",
-            messages.SUCCESS,
-        )
+        for question in queryset.iterator():
+            try:
+                question.full_clean()
+
+                question.status = "published"
+                question.save()
+
+                published_count += 1
+
+            except ValidationError:
+                failed_count += 1
+
+        if published_count:
+            self.message_user(
+                request,
+                f"{published_count} question(s) published successfully.",
+                messages.SUCCESS,
+            )
+
+        if failed_count:
+            self.message_user(
+                request,
+                f"{failed_count} question(s) could not be published. "
+                "Their status was not changed. Review their details.",
+                messages.WARNING,
+            )
 
     @admin.action(description="Return selected questions to draft")
     def return_to_draft(self, request, queryset):

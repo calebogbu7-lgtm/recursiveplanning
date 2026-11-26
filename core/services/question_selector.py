@@ -10,6 +10,7 @@ VALID_DIFFICULTIES = {
 }
 
 VALID_SOURCE_TYPES = {
+    "all",
     "past_question",
     "model_question",
 }
@@ -22,133 +23,79 @@ VALID_ORDERS = {
 
 def select_questions(
     *,
-    syllabus_year,
+    syllabus_year=None,
     subject=None,
     topic=None,
     subtopic=None,
-    source_type=None,
+    source_type="all",
     source_year=None,
-    difficulty=None,
+    difficulty="all",
     number_of_questions=None,
     order="random",
 ):
     """
     Select published questions according to the supplied criteria.
 
-    The function first builds the eligible question pool and then
-    selects the requested number of questions from that pool.
+    ExamYear is the student's target JAMB exam year.
 
-    Parameters
-    ----------
-    syllabus_year:
-        The student's JAMB syllabus year.
+    SyllabusVersion.year is the year of the content.
 
-    subject:
-        Optional Subject object.
+    Question.source_year is the year of a past question.
 
-    topic:
-        Optional Topic object.
+    These three year values are separate.
 
-    subtopic:
-        Optional Subtopic object.
-
-    source_type:
-        Optional:
-            "past_question"
-            "model_question"
-
-    source_year:
-        Optional past-question year.
-
-    difficulty:
-        Optional:
-            "easy"
-            "medium"
-            "hard"
-
-    number_of_questions:
-        Number of questions requested.
-        If omitted, all eligible questions are returned.
-
-    order:
-        "sequential" or "random"
-
-    Returns
-    -------
-    list[Question]
-        The selected questions.
-
-    Raises
-    ------
-    ValueError
-        If invalid selection criteria are supplied or the requested
-        number of questions is greater than the available pool.
+    Selecting 'all' for source_type or difficulty
+    means no restriction is applied for that setting.
     """
 
-    # ---------------------------------------------------------
-    # Validate syllabus year
-    # ---------------------------------------------------------
+    # Validate syllabus year.
+    if syllabus_year is not None:
+        if (
+            isinstance(syllabus_year, bool)
+            or not isinstance(syllabus_year, int)
+            or syllabus_year < 1
+        ):
+            raise ValueError(
+                "syllabus_year must be a positive integer."
+            )
 
-    if (
-        isinstance(syllabus_year, bool)
-        or not isinstance(syllabus_year, int)
-        or syllabus_year < 1
-    ):
-        raise ValueError(
-            "syllabus_year must be a positive integer."
-        )
-
-    # ---------------------------------------------------------
-    # Validate source type
-    # ---------------------------------------------------------
-
+    # Validate source type.
     if source_type is not None:
         source_type = source_type.strip().lower()
 
         if source_type not in VALID_SOURCE_TYPES:
             raise ValueError(
-                "source_type must be past_question or model_question."
+                "source_type must be all, past_question "
+                "or model_question."
             )
 
-    # ---------------------------------------------------------
-    # Validate source year
-    # ---------------------------------------------------------
-
+    # Validate question year.
     if source_year is not None:
         if (
             isinstance(source_year, bool)
             or not isinstance(source_year, int)
-            or source_year < 1
+            or source_year < 1900
         ):
             raise ValueError(
-                "source_year must be a positive integer."
+                "source_year must be a valid question year."
             )
 
-    # ---------------------------------------------------------
-    # Validate difficulty
-    # ---------------------------------------------------------
-
+    # Validate difficulty.
     if difficulty is not None:
         difficulty = difficulty.strip().lower()
 
-        if difficulty not in VALID_DIFFICULTIES:
+        if difficulty not in VALID_DIFFICULTIES | {"all"}:
             raise ValueError(
-                "difficulty must be easy, medium or hard."
+                "difficulty must be all, easy, medium or hard."
             )
 
-    # ---------------------------------------------------------
-    # Validate question order
-    # ---------------------------------------------------------
-
+    # Validate order.
     if order not in VALID_ORDERS:
         raise ValueError(
             "order must be sequential or random."
         )
 
-    # ---------------------------------------------------------
-    # Validate question count
-    # ---------------------------------------------------------
-
+    # Validate question count.
     if number_of_questions is not None:
         if (
             isinstance(number_of_questions, bool)
@@ -159,100 +106,65 @@ def select_questions(
                 "number_of_questions must be a positive integer."
             )
 
-    # ---------------------------------------------------------
-    # Start with published questions belonging to the
-    # student's syllabus year.
-    # ---------------------------------------------------------
-
+    # Start with published questions only.
     questions = Question.objects.filter(
         status="published",
-        subtopic__topic__syllabus_version__year=syllabus_year,
     )
 
-    # ---------------------------------------------------------
-    # Optional subject filter
-    # ---------------------------------------------------------
+    # Optional syllabus/content-year filter.
+    if syllabus_year is not None:
+        questions = questions.filter(
+            subtopic__topic__syllabus_version__year=syllabus_year,
+        )
 
+    # Optional subject filter.
     if subject is not None:
         questions = questions.filter(
             subtopic__topic__syllabus_version__subject=subject,
         )
 
-    # ---------------------------------------------------------
-    # Optional topic filter
-    # ---------------------------------------------------------
-
+    # Optional topic filter.
     if topic is not None:
         questions = questions.filter(
             subtopic__topic=topic,
         )
 
-    # ---------------------------------------------------------
-    # Optional subtopic filter
-    # ---------------------------------------------------------
-
+    # Optional subtopic filter.
     if subtopic is not None:
         questions = questions.filter(
             subtopic=subtopic,
         )
 
-    # ---------------------------------------------------------
-    # Optional question source filter
-    # ---------------------------------------------------------
-
-    if source_type is not None:
+    # Filter by source type only when a specific type is selected.
+    if source_type in {
+        "past_question",
+        "model_question",
+    }:
         questions = questions.filter(
             source_type=source_type,
         )
 
-    # ---------------------------------------------------------
-    # Source year only applies to past questions.
-    #
-    # This means that even if source_type was not explicitly
-    # supplied, choosing a source year will only return
-    # past questions from that year.
-    # ---------------------------------------------------------
-
+    # Question year applies only to past questions.
     if source_year is not None:
         questions = questions.filter(
             source_type="past_question",
             source_year=source_year,
         )
 
-    # ---------------------------------------------------------
-    # Optional difficulty filter
-    # ---------------------------------------------------------
-
-    if difficulty is not None:
+    # Filter by difficulty only when a specific difficulty is selected.
+    if difficulty in VALID_DIFFICULTIES:
         questions = questions.filter(
             difficulty=difficulty,
         )
 
-    # ---------------------------------------------------------
-    # Remove duplicate questions that could result from
-    # relationship joins.
-    # ---------------------------------------------------------
-
     questions = questions.distinct()
 
-    # ---------------------------------------------------------
-    # Determine the number of eligible questions.
-    # ---------------------------------------------------------
-
     available_count = questions.count()
-
-    # ---------------------------------------------------------
-    # No eligible questions.
-    # ---------------------------------------------------------
 
     if available_count == 0:
         return []
 
-    # ---------------------------------------------------------
-    # If no question count was supplied, return the entire
-    # eligible pool.
-    # ---------------------------------------------------------
-
+    # Return every eligible question when no count is specified.
     if number_of_questions is None:
 
         if order == "random":
@@ -266,10 +178,7 @@ def select_questions(
             questions.order_by("id")
         )
 
-    # ---------------------------------------------------------
-    # Do not silently return fewer questions than requested.
-    # ---------------------------------------------------------
-
+    # Prevent requesting more questions than are available.
     if number_of_questions > available_count:
         raise ValueError(
             f"Only {available_count} question(s) are available "
@@ -277,12 +186,7 @@ def select_questions(
             f"{number_of_questions} were requested."
         )
 
-    # ---------------------------------------------------------
     # Sequential selection.
-    #
-    # Questions are returned in their database ID order.
-    # ---------------------------------------------------------
-
     if order == "sequential":
         return list(
             questions.order_by("id")[
@@ -290,13 +194,7 @@ def select_questions(
             ]
         )
 
-    # ---------------------------------------------------------
     # Random selection.
-    #
-    # Random questions are selected ONLY from the eligible
-    # question pool.
-    # ---------------------------------------------------------
-
     question_ids = list(
         questions.values_list(
             "id",
@@ -309,20 +207,11 @@ def select_questions(
         number_of_questions,
     )
 
-    # ---------------------------------------------------------
-    # Retrieve the selected Question objects.
-    # ---------------------------------------------------------
-
     selected_questions = list(
         Question.objects.filter(
             id__in=selected_ids,
         )
     )
-
-    # ---------------------------------------------------------
-    # Rebuild the questions in the exact random order produced
-    # by random.sample().
-    # ---------------------------------------------------------
 
     questions_by_id = {
         question.id: question

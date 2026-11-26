@@ -179,9 +179,13 @@ class Question(models.Model):
     def clean(self):
         errors = {}
 
+        # Validate question text.
         if not self.text or not self.text.strip():
-            errors["text"] = "Question text cannot be empty."
+            errors["text"] = (
+                "Question text cannot be empty."
+            )
 
+        # Validate all four answer options.
         options = {
             "option_a": self.option_a,
             "option_b": self.option_b,
@@ -191,20 +195,40 @@ class Question(models.Model):
 
         for field, value in options.items():
             if not value or not value.strip():
-                errors[field] = "All four answer options are required."
+                errors[field] = (
+                    "All four answer options are required."
+                )
 
-        if self.source_type == "past_question" and not self.source_year:
-            errors["source_year"] = (
-                "Past questions must have a source year."
-            )
+        # Validate source information.
+        if self.source_type == "past_question":
 
-        if (
+            if not self.source_year:
+                errors["source_year"] = (
+                    "Past questions must have a source year."
+                )
+
+            elif self.source_year < 1900:
+                errors["source_year"] = (
+                    "Source year must be 1900 or later."
+                )
+
+        elif (
             self.source_type == "model_question"
             and self.source_year is not None
         ):
             errors["source_year"] = (
                 "Model questions cannot have a source year."
             )
+
+        # Published questions must have explanations.
+        if self.status == "published":
+            if (
+                not self.explanation
+                or not self.explanation.strip()
+            ):
+                errors["explanation"] = (
+                    "Published questions must have an explanation."
+                )
 
         if errors:
             raise ValidationError(errors)
@@ -233,11 +257,19 @@ class StudentProfile(models.Model):
     exam_year = models.ForeignKey(
         ExamYear,
         on_delete=models.PROTECT,
-        related_name="students"
+        related_name="students",
+        null=True,
+        blank=True,
     )
 
     def __str__(self):
-        return f"{self.user.username} — JAMB {self.exam_year.year}"
+        if self.exam_year:
+            return (
+                f"{self.user.username} — "
+                f"JAMB {self.exam_year.year}"
+            )
+
+        return f"{self.user.username} — No exam year selected"
 
 
 class PracticeAttempt(models.Model):
@@ -281,7 +313,7 @@ class PracticeSession(models.Model):
     Represents one question-selection session.
 
     The session stores the student's selection criteria and the
-    student's exam year at the moment the session starts.
+    exam year selected for that particular session.
     """
 
     MODE_CHOICES = [

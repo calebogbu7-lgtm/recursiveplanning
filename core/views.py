@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -13,7 +14,6 @@ from .models import (
     PracticeAttempt,
     PracticeSession,
     PracticeSessionQuestion,
-    Question,
     StudentProfile,
     Subject,
     Subtopic,
@@ -38,7 +38,7 @@ def register(request):
 
         if form.is_valid():
             with transaction.atomic():
-                user = form.save()
+                form.save()
 
             messages.success(
                 request,
@@ -61,39 +61,64 @@ def register(request):
 
 def student_login(request):
     if request.user.is_authenticated:
+        if request.user.is_staff:
+            return redirect("admin:index")
+
         return redirect("student_dashboard")
 
     if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
+        identifier = request.POST.get(
+            "identifier",
+            "",
+        ).strip()
+
+        password = request.POST.get(
+            "password",
+            "",
+        )
 
         user = authenticate(
             request,
-            username=username,
+            username=identifier,
             password=password,
         )
 
+        if user is None and identifier:
+            email_user = (
+                User.objects.filter(
+                    email__iexact=identifier,
+                )
+                .order_by("id")
+                .first()
+            )
+
+            if email_user is not None:
+                user = authenticate(
+                    request,
+                    username=email_user.username,
+                    password=password,
+                )
+
         if user is not None:
-            login(request, user)
+            login(
+                request,
+                user,
+            )
 
-            # Admin/staff accounts belong to the Django admin
-            # and do not need a StudentProfile.
             if user.is_staff:
-                return redirect("student_dashboard")
+                return redirect("admin:index")
 
-            # Normal student accounts must have a StudentProfile.
             if not StudentProfile.objects.filter(
-                user=user
+                user=user,
             ).exists():
                 logout(request)
 
                 messages.error(
                     request,
                     (
-                        "This student account does not have a "
-                        "student profile and exam year. Please "
-                        "contact the administrator before using "
-                        "the student platform."
+                        "This student account does not have "
+                        "a student profile. Please contact "
+                        "the administrator."
                     ),
                 )
 
@@ -103,7 +128,7 @@ def student_login(request):
 
         messages.error(
             request,
-            "Invalid username or password.",
+            "Invalid username/email or password.",
         )
 
     return render(
@@ -122,9 +147,7 @@ def student_logout(request):
 @login_required(login_url="student_login")
 def student_dashboard(request):
     profile = get_object_or_404(
-        StudentProfile.objects.select_related(
-            "exam_year",
-        ),
+        StudentProfile,
         user=request.user,
     )
 
@@ -281,58 +304,21 @@ def student_dashboard(request):
 
 @login_required(login_url="student_login")
 def practice(request):
-    profile = get_object_or_404(
-        StudentProfile.objects.select_related(
-            "exam_year",
-        ),
-        user=request.user,
-    )
-
-    exam_year = profile.exam_year.year
-
-    subjects = (
-        Subject.objects.filter(
-            syllabus_versions__year=exam_year,
-        )
-        .distinct()
-        .order_by("name")
-    )
-
-    return render(
-        request,
-        "core/practice.html",
-        {
-            "subjects": subjects,
-            "exam_year": exam_year,
-        },
-    )
+    return redirect("practice_setup")
 
 
 @login_required(login_url="student_login")
 def practice_setup(request):
-    """
-    Create a new flexible practice session.
-
-    The student's exam year always comes from StudentProfile.
-    It is never supplied by the student and is never hardcoded.
-    """
-
-    profile = get_object_or_404(
-        StudentProfile.objects.select_related(
-            "exam_year",
-        ),
-        user=request.user,
-    )
-
-    exam_year = profile.exam_year.year
-
     if request.method == "POST":
-        form = PracticeSelectionForm(
-            request.POST,
-            exam_year=exam_year,
-        )
+        form = PracticeSelectionForm(request.POST)
 
         if form.is_valid():
+            profile = get_object_or_404(
+                StudentProfile,
+                user=request.user,
+            )
+
+            exam_year = form.cleaned_data["exam_year"]
             subject = form.cleaned_data["subject"]
             topic = form.cleaned_data["topic"]
             subtopic = form.cleaned_data["subtopic"]
@@ -346,7 +332,6 @@ def practice_setup(request):
 
             try:
                 selected_questions = select_questions(
-                    syllabus_year=exam_year,
                     subject=subject,
                     topic=topic,
                     subtopic=subtopic,
@@ -367,22 +352,19 @@ def practice_setup(request):
                 with transaction.atomic():
                     session = PracticeSession.objects.create(
                         student=profile,
-                        exam_year=profile.exam_year,
+                        exam_year=exam_year,
                         mode="practice",
                         subject=subject,
                         topic=topic,
                         subtopic=subtopic,
-                        source_type=(
-                            source_type or "all"
-                        ),
+                        source_type=source_type or "all",
                         source_year=source_year,
-                        difficulty=(
-                            difficulty or None
-                        ),
+                        difficulty=difficulty or None,
                         question_count=len(
                             selected_questions
                         ),
                         order_mode=order,
+                        status="in_progress",
                     )
 
                     PracticeSessionQuestion.objects.bulk_create(
@@ -401,60 +383,377 @@ def practice_setup(request):
                 messages.success(
                     request,
                     (
-                        f"Practice session created with "
-                        f"{len(selected_questions)} "
-                        f"question(s)."
+                        f"Practice session started with "
+                        f"{len(selected_questions)} question(s)."
                     ),
                 )
 
-                return render(
-                    request,
-                    "core/practice_setup.html",
-                    {
-                        "form": PracticeSelectionForm(
-                            exam_year=exam_year,
-                        ),
-                        "exam_year": exam_year,
-                        "session": session,
-                        "selected_questions": (
-                            selected_questions
-                        ),
-                        "session_created": True,
-                    },
+                return redirect(
+                    "practice_session_question",
+                    session_id=session.id,
+                    position=1,
                 )
 
     else:
-        form = PracticeSelectionForm(
-            exam_year=exam_year,
-        )
+        form = PracticeSelectionForm()
 
     return render(
         request,
         "core/practice_setup.html",
         {
             "form": form,
-            "exam_year": exam_year,
+        },
+    )
+
+
+@login_required(login_url="student_login")
+def practice_session_question(
+    request,
+    session_id,
+    position,
+):
+    profile = get_object_or_404(
+        StudentProfile,
+        user=request.user,
+    )
+
+    session = get_object_or_404(
+        PracticeSession.objects.select_related(
+            "exam_year",
+            "subject",
+            "topic",
+            "subtopic",
+        ),
+        id=session_id,
+        student=profile,
+    )
+
+    if session.status == "submitted":
+        return redirect(
+            "practice_session_results",
+            session_id=session.id,
+        )
+
+    if session.status != "in_progress":
+        return redirect("practice_setup")
+
+    questions = list(
+        session.session_questions.select_related(
+            "question",
+        ).order_by(
+            "position",
+        )
+    )
+
+    if not questions:
+        messages.error(
+            request,
+            "This practice session has no questions.",
+        )
+
+        session.status = "abandoned"
+        session.save(
+            update_fields=["status"],
+        )
+
+        return redirect("practice_setup")
+
+    total_questions = len(questions)
+
+    if position < 1 or position > total_questions:
+        return redirect(
+            "practice_session_question",
+            session_id=session.id,
+            position=1,
+        )
+
+    current = questions[position - 1]
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        # Save the current answer before navigation or submission.
+        if action in {
+            "next",
+            "previous",
+            "submit",
+        }:
+            selected_option = request.POST.get(
+                "answer",
+            )
+
+            if selected_option in {
+                "A",
+                "B",
+                "C",
+                "D",
+            }:
+                current.selected_option = selected_option
+                current.answered_at = timezone.now()
+                current.is_correct = (
+                    selected_option
+                    == current.question.correct_option
+                )
+
+                current.save(
+                    update_fields=[
+                        "selected_option",
+                        "answered_at",
+                        "is_correct",
+                    ]
+                )
+
+        if action == "previous":
+            return redirect(
+                "practice_session_question",
+                session_id=session.id,
+                position=max(
+                    1,
+                    position - 1,
+                ),
+            )
+
+        if action == "next":
+            return redirect(
+                "practice_session_question",
+                session_id=session.id,
+                position=min(
+                    total_questions,
+                    position + 1,
+                ),
+            )
+
+        if action == "submit":
+            unanswered_count = (
+                session.session_questions.filter(
+                    selected_option__isnull=True,
+                ).count()
+            )
+
+            if unanswered_count > 0:
+                return render(
+                    request,
+                    "core/practice_session_question.html",
+                    {
+                        "session": session,
+                        "current": current,
+                        "position": position,
+                        "total_questions": total_questions,
+                        "questions": questions,
+                        "unanswered_count": unanswered_count,
+                        "show_submit_confirmation": True,
+                    },
+                )
+
+            return submit_practice_session(
+                request,
+                session,
+            )
+
+        if action == "confirm_submit":
+            return submit_practice_session(
+                request,
+                session,
+            )
+
+    return render(
+        request,
+        "core/practice_session_question.html",
+        {
+            "session": session,
+            "current": current,
+            "position": position,
+            "total_questions": total_questions,
+            "questions": questions,
+            "unanswered_count": (
+                session.session_questions.filter(
+                    selected_option__isnull=True,
+                ).count()
+            ),
+            "show_submit_confirmation": False,
+        },
+    )
+
+
+def submit_practice_session(
+    request,
+    session,
+):
+    with transaction.atomic():
+        # Lock and reload the session so two submission requests
+        # cannot both create history records.
+        session = PracticeSession.objects.select_for_update().get(
+            id=session.id,
+        )
+
+        if session.status == "submitted":
+            return redirect(
+                "practice_session_results",
+                session_id=session.id,
+            )
+
+        if session.status != "in_progress":
+            return redirect("practice_setup")
+
+        questions = list(
+            session.session_questions.select_related(
+                "question",
+            ).order_by(
+                "position",
+            )
+        )
+
+        score = 0
+
+        for session_question in questions:
+            selected_option = session_question.selected_option
+
+            session_question.is_correct = (
+                selected_option is not None
+                and selected_option
+                == session_question.question.correct_option
+            )
+
+            if session_question.is_correct:
+                score += 1
+
+            session_question.save(
+                update_fields=["is_correct"],
+            )
+
+        session.score = score
+        session.status = "submitted"
+        session.submitted_at = timezone.now()
+
+        session.save(
+            update_fields=[
+                "score",
+                "status",
+                "submitted_at",
+            ]
+        )
+
+        # Preserve the older subtopic-specific history system.
+        if session.subtopic is not None:
+            PracticeAttempt.objects.create(
+                student=session.student,
+                subtopic=session.subtopic,
+                total_questions=len(questions),
+                score=score,
+                submitted_at=session.submitted_at,
+            )
+
+    return redirect(
+        "practice_session_results",
+        session_id=session.id,
+    )
+
+
+@login_required(login_url="student_login")
+def practice_session_results(
+    request,
+    session_id,
+):
+    profile = get_object_or_404(
+        StudentProfile,
+        user=request.user,
+    )
+
+    session = get_object_or_404(
+        PracticeSession.objects.select_related(
+            "exam_year",
+            "subject",
+            "topic",
+            "subtopic",
+        ),
+        id=session_id,
+        student=profile,
+    )
+
+    if session.status != "submitted":
+        return redirect(
+            "practice_session_question",
+            session_id=session.id,
+            position=1,
+        )
+
+    session_questions = list(
+        session.session_questions.select_related(
+            "question",
+        ).order_by(
+            "position",
+        )
+    )
+
+    results = []
+
+    for session_question in session_questions:
+        question = session_question.question
+
+        option_text = {
+            "A": question.option_a,
+            "B": question.option_b,
+            "C": question.option_c,
+            "D": question.option_d,
+        }
+
+        results.append(
+            {
+                "position": session_question.position + 1,
+                "question": question,
+                "selected_option": session_question.selected_option,
+                "selected_text": (
+                    option_text.get(
+                        session_question.selected_option,
+                    )
+                    if session_question.selected_option
+                    else None
+                ),
+                "correct_option": question.correct_option,
+                "correct_text": option_text[
+                    question.correct_option
+                ],
+                "is_correct": session_question.is_correct,
+            }
+        )
+
+    total_questions = len(session_questions)
+    score = session.score or 0
+
+    accuracy = (
+        round(
+            (score / total_questions) * 100,
+            1,
+        )
+        if total_questions > 0
+        else 0
+    )
+
+    unanswered = sum(
+        1
+        for item in session_questions
+        if item.selected_option is None
+    )
+
+    return render(
+        request,
+        "core/practice_session_results.html",
+        {
+            "session": session,
+            "results": results,
+            "score": score,
+            "total_questions": total_questions,
+            "accuracy": accuracy,
+            "unanswered": unanswered,
         },
     )
 
 
 @login_required(login_url="student_login")
 def subject_detail(request, subject_id):
-    profile = get_object_or_404(
-        StudentProfile.objects.select_related(
-            "exam_year",
-        ),
-        user=request.user,
-    )
-
     subject = get_object_or_404(
         Subject,
         id=subject_id,
-        syllabus_versions__year=profile.exam_year.year,
-    )
-
-    syllabuses = subject.syllabus_versions.prefetch_related(
-        "topics__subtopics"
     )
 
     return render(
@@ -462,24 +761,15 @@ def subject_detail(request, subject_id):
         "core/subject_detail.html",
         {
             "subject": subject,
-            "syllabuses": syllabuses,
         },
     )
 
 
 @login_required(login_url="student_login")
 def topic_detail(request, topic_id):
-    profile = get_object_or_404(
-        StudentProfile.objects.select_related(
-            "exam_year",
-        ),
-        user=request.user,
-    )
-
     topic = get_object_or_404(
         Topic,
         id=topic_id,
-        syllabus_version__year=profile.exam_year.year,
     )
 
     return render(
@@ -494,16 +784,13 @@ def topic_detail(request, topic_id):
 @login_required(login_url="student_login")
 def subtopic_detail(request, subtopic_id):
     profile = get_object_or_404(
-        StudentProfile.objects.select_related(
-            "exam_year",
-        ),
+        StudentProfile,
         user=request.user,
     )
 
     subtopic = get_object_or_404(
         Subtopic,
         id=subtopic_id,
-        topic__syllabus_version__year=profile.exam_year.year,
     )
 
     questions = list(
@@ -528,7 +815,6 @@ def subtopic_detail(request, subtopic_id):
 
     if practice_data and (
         practice_data.get("user_id") != request.user.id
-        or practice_data.get("exam_year") != profile.exam_year.year
         or practice_data.get("subtopic_id") != subtopic.id
     ):
         request.session.pop(
@@ -555,7 +841,6 @@ def subtopic_detail(request, subtopic_id):
 
             request.session[session_key] = {
                 "user_id": request.user.id,
-                "exam_year": profile.exam_year.year,
                 "subtopic_id": subtopic.id,
                 "attempt_id": attempt.id,
                 "current_index": 0,
@@ -620,12 +905,6 @@ def subtopic_detail(request, subtopic_id):
             if not practice_data or not practice_data.get("started"):
                 return redirect(
                     "subtopic_detail",
-                    subtopic_id=subtopic.id,
-                )
-
-            if practice_data.get("submitted"):
-                return redirect(
-                    "practice_results",
                     subtopic_id=subtopic.id,
                 )
 
@@ -774,7 +1053,6 @@ def subtopic_detail(request, subtopic_id):
         "core/subtopic_detail.html",
         {
             "subtopic": subtopic,
-            "questions": questions,
             "current_question": current_question,
             "current_index": current_index,
             "total_questions": len(questions),
@@ -790,16 +1068,13 @@ def subtopic_detail(request, subtopic_id):
 @login_required(login_url="student_login")
 def practice_results(request, subtopic_id):
     profile = get_object_or_404(
-        StudentProfile.objects.select_related(
-            "exam_year",
-        ),
+        StudentProfile,
         user=request.user,
     )
 
     subtopic = get_object_or_404(
         Subtopic,
         id=subtopic_id,
-        topic__syllabus_version__year=profile.exam_year.year,
     )
 
     questions = list(
@@ -814,7 +1089,6 @@ def practice_results(request, subtopic_id):
 
     if not practice_data or (
         practice_data.get("user_id") != request.user.id
-        or practice_data.get("exam_year") != profile.exam_year.year
         or practice_data.get("subtopic_id") != subtopic.id
         or not practice_data.get("submitted")
     ):

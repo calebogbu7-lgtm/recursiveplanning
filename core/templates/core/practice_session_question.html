@@ -1,0 +1,194 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Practice Question
+{% endblock %}
+
+{% block content %}
+
+<h1>Practice</h1>
+
+<p>
+    Question {{ position }} of {{ total_questions }}
+</p>
+
+{% if session.subject %}
+    <p>
+        Subject: {{ session.subject.name }}
+    </p>
+{% endif %}
+
+{% if session.exam_year %}
+    <p>
+        Exam Year: {{ session.exam_year.year }}
+    </p>
+{% endif %}
+
+<hr>
+
+<h2>
+    {{ current.question.text }}
+</h2>
+
+<form method="post">
+
+    {% csrf_token %}
+
+    <p>
+        <label>
+            <input
+                type="radio"
+                name="answer"
+                value="A"
+                {% if current.selected_option == "A" %}checked{% endif %}
+            >
+
+            A. {{ current.question.option_a }}
+        </label>
+    </p>
+
+    <p>
+        <label>
+            <input
+                type="radio"
+                name="answer"
+                value="B"
+                {% if current.selected_option == "B" %}checked{% endif %}
+            >
+
+            B. {{ current.question.option_b }}
+        </label>
+    </p>
+
+    <p>
+        <label>
+            <input
+                type="radio"
+                name="answer"
+                value="C"
+                {% if current.selected_option == "C" %}checked{% endif %}
+            >
+
+            C. {{ current.question.option_c }}
+        </label>
+    </p>
+
+    <p>
+        <label>
+            <input
+                type="radio"
+                name="answer"
+                value="D"
+                {% if current.selected_option == "D" %}checked{% endif %}
+            >
+
+            D. {{ current.question.option_d }}
+        </label>
+    </p>
+
+    <br>
+
+    {% if position > 1 %}
+        <button
+            type="submit"
+            name="action"
+            value="previous"
+        >
+            Previous
+        </button>
+    {% endif %}
+
+    {% if position < total_questions %}
+        <button
+            type="submit"
+            name="action"
+            value="next"
+        >
+            Next
+        </button>
+    {% endif %}
+
+    {% if position == total_questions %}
+        <button
+            type="submit"
+            name="action"
+            value="submit"
+        >
+            Submit Practice
+        </button>
+    {% endif %}
+
+</form>
+
+{% if unanswered_count > 0 %}
+    <p>
+        Unanswered questions: {{ unanswered_count }}
+    </p>
+{% endif %}
+
+{% if show_submit_confirmation %}
+
+    <hr>
+
+    <h3>
+        You still have {{ unanswered_count }}
+        unanswered question(s).
+    </h3>
+
+    <p>
+        Are you sure you want to submit?
+    </p>
+
+    <form method="post">
+
+        {% csrf_token %}
+
+        <input
+            type="hidden"
+            name="confirm"
+            value="yes"
+        >
+
+        <input
+            type="hidden"
+            name="action"
+            value="confirm_submit"
+        >
+
+        <button type="submit">
+            Yes, Submit
+        </button>
+
+    </form>
+
+    <form method="get">
+        <button type="submit">
+            Continue Practising
+        </button>
+    </form>
+
+{% endif %}
+
+<hr>
+
+<h3>Question Progress</h3>
+
+{% for session_question in questions %}
+
+    <a
+        href="{% url 'practice_session_question' session_id=session.id position=session_question.position|add:1 %}"
+    >
+        Question {{ session_question.position|add:1 }}
+    </a>
+
+    {% if session_question.selected_option %}
+        ✓
+    {% else %}
+        ○
+    {% endif %}
+
+    <br>
+
+{% endfor %}
+
+{% endblock %}

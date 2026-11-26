@@ -1,0 +1,108 @@
+{% extends "core/base.html" %}
+
+{% block title %}
+Practice Results
+{% endblock %}
+
+{% block content %}
+
+<h1>Practice Results</h1>
+
+{% if session.exam_year %}
+    <p>
+        Exam Year: {{ session.exam_year.year }}
+    </p>
+{% endif %}
+
+{% if session.subject %}
+    <p>
+        Subject: {{ session.subject.name }}
+    </p>
+{% endif %}
+
+<h2>
+    Score: {{ score }} / {{ total_questions }}
+</h2>
+
+<p>
+    Accuracy: {{ accuracy }}%
+</p>
+
+<p>
+    Unanswered: {{ unanswered }}
+</p>
+
+<hr>
+
+<h2>Review</h2>
+
+{% for result in results %}
+
+    <article>
+
+        <h3>
+            Question {{ result.position }}
+        </h3>
+
+        <p>
+            {{ result.question.text }}
+        </p>
+
+        <p>
+            Your answer:
+
+            {% if result.selected_option %}
+                {{ result.selected_option }}.
+                {{ result.selected_text }}
+            {% else %}
+                Unanswered
+            {% endif %}
+        </p>
+
+        <p>
+            Correct answer:
+
+            {{ result.correct_option }}.
+            {{ result.correct_text }}
+        </p>
+
+        {% if result.is_correct %}
+            <p>
+                Correct
+            </p>
+        {% elif result.selected_option %}
+            <p>
+                Incorrect
+            </p>
+        {% else %}
+            <p>
+                Unanswered
+            </p>
+        {% endif %}
+
+        {% if result.question.explanation %}
+            <p>
+                <strong>Explanation:</strong>
+                {{ result.question.explanation }}
+            </p>
+        {% endif %}
+
+    </article>
+
+    <hr>
+
+{% endfor %}
+
+<p>
+    <a href="{% url 'practice_setup' %}">
+        Start Another Practice
+    </a>
+</p>
+
+<p>
+    <a href="{% url 'student_dashboard' %}">
+        Return to Dashboard
+    </a>
+</p>
+
+{% endblock %}

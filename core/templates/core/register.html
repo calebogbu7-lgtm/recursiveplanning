@@ -56,22 +56,15 @@ Create Account
     <br>
 
     <div>
-        {{ form.exam_year.label_tag }}
-        {{ form.exam_year }}
-        {{ form.exam_year.errors }}
-
-        <small>
-            Select the year you intend to sit for JAMB,
-            not the year you create this account.
-        </small>
-    </div>
-
-    <br>
-
-    <div>
         {{ form.password1.label_tag }}
         {{ form.password1 }}
-        {{ form.password1.help_text }}
+
+        {% if form.password1.help_text %}
+            <small>
+                {{ form.password1.help_text }}
+            </small>
+        {% endif %}
+
         {{ form.password1.errors }}
     </div>
 
@@ -80,7 +73,13 @@ Create Account
     <div>
         {{ form.password2.label_tag }}
         {{ form.password2 }}
-        {{ form.password2.help_text }}
+
+        {% if form.password2.help_text %}
+            <small>
+                {{ form.password2.help_text }}
+            </small>
+        {% endif %}
+
         {{ form.password2.errors }}
     </div>
 
@@ -122,16 +121,22 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    usernameInput.addEventListener("input", checkUsername);
+    usernameInput.addEventListener(
+        "input",
+        checkUsername
+    );
 
-    registrationForm.addEventListener("submit", function (event) {
-        checkUsername();
+    registrationForm.addEventListener(
+        "submit",
+        function (event) {
+            checkUsername();
 
-        if (/\s/.test(usernameInput.value)) {
-            event.preventDefault();
-            usernameInput.focus();
+            if (/\s/.test(usernameInput.value)) {
+                event.preventDefault();
+                usernameInput.focus();
+            }
         }
-    });
+    );
 });
 </script>
 

@@ -4,11 +4,9 @@
 Student Login
 {% endblock %}
 
-
 {% block content %}
 
 <h2>Student Login</h2>
-
 
 {% if messages %}
 
@@ -20,24 +18,23 @@ Student Login
 
 {% endif %}
 
-
 <form method="post">
 
     {% csrf_token %}
 
     <p>
-        <label for="username">
-            Username
+        <label for="identifier">
+            Username or Email
         </label>
 
         <input
             type="text"
-            name="username"
-            id="username"
+            name="identifier"
+            id="identifier"
+            autocomplete="username"
             required
         >
     </p>
-
 
     <p>
         <label for="password">
@@ -48,17 +45,16 @@ Student Login
             type="password"
             name="password"
             id="password"
+            autocomplete="current-password"
             required
         >
     </p>
-
 
     <button type="submit">
         Log In
     </button>
 
 </form>
-
 
 <p>
     Don't have an account?
