@@ -1,7 +1,8 @@
+
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 
-from .models import (
+from core.models import (
     Category,
     Subject,
     SyllabusVersion,
@@ -16,55 +17,61 @@ from .models import (
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("id", "name")
     search_fields = ("name",)
+    ordering = ("name",)
 
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "category")
+    list_display = ("id", "name", "category")
     list_filter = ("category",)
-    search_fields = ("name",)
+    search_fields = ("name", "category__name")
+    autocomplete_fields = ("category",)
+    ordering = ("name",)
 
 
 @admin.register(SyllabusVersion)
 class SyllabusVersionAdmin(admin.ModelAdmin):
-    list_display = ("subject", "year")
-    list_filter = ("year",)
+    list_display = ("id", "subject", "year")
+    list_filter = ("year", "subject")
     search_fields = ("subject__name",)
+    autocomplete_fields = ("subject",)
+    ordering = ("-year",)
 
 
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):
-    list_display = ("name", "syllabus_version")
-    list_filter = ("syllabus_version",)
-    search_fields = ("name",)
+    list_display = ("id", "name", "syllabus_version")
+    list_filter = ("syllabus_version__year", "syllabus_version__subject")
+    search_fields = ("name", "syllabus_version__subject__name")
+    autocomplete_fields = ("syllabus_version",)
+    ordering = ("name",)
 
 
 @admin.register(Subtopic)
 class SubtopicAdmin(admin.ModelAdmin):
-    list_display = ("name", "topic")
-    list_filter = ("topic",)
-    search_fields = ("name",)
+    list_display = ("id", "name", "topic")
+    list_filter = (
+        "topic__syllabus_version__year",
+        "topic__syllabus_version__subject",
+    )
+    search_fields = ("name", "topic__name")
+    autocomplete_fields = ("topic",)
+    ordering = ("name",)
 
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-
-    @admin.display(description="Question")
-    def question_preview(self, obj):
-        if len(obj.text) > 90:
-            return f"{obj.text[:90]}..."
-        return obj.text
-
     list_display = (
-        "question_preview",
+        "id",
+        "short_question",
         "subtopic",
         "source_type",
         "source_year",
         "difficulty",
         "status",
-        "created_at",
+        "updated_at",
     )
 
     list_filter = (
@@ -72,38 +79,23 @@ class QuestionAdmin(admin.ModelAdmin):
         "source_type",
         "source_year",
         "difficulty",
+        "subtopic__topic__syllabus_version__year",
         "subtopic__topic__syllabus_version__subject",
     )
 
     search_fields = (
         "text",
-        "option_a",
-        "option_b",
-        "option_c",
-        "option_d",
         "subtopic__name",
         "subtopic__topic__name",
+        "subtopic__topic__syllabus_version__subject__name",
     )
 
     autocomplete_fields = ("subtopic",)
 
     readonly_fields = (
+        "status",
         "created_at",
         "updated_at",
-    )
-
-    list_select_related = (
-        "subtopic__topic__syllabus_version__subject",
-    )
-
-    ordering = ("status", "-created_at")
-    list_per_page = 50
-    save_on_top = True
-
-    actions = (
-        "publish_questions",
-        "return_to_draft",
-        "archive_questions",
     )
 
     fieldsets = (
@@ -144,75 +136,130 @@ class QuestionAdmin(admin.ModelAdmin):
         ),
     )
 
-    @admin.action(description="Publish selected questions")
-    def publish_questions(self, request, queryset):
-        published_count = 0
-        failed_count = 0
+    actions = (
+        "send_to_review",
+        "publish_questions",
+        "return_to_draft",
+        "archive_questions",
+    )
 
-        for question in queryset.iterator():
+    ordering = ("-updated_at",)
+    list_per_page = 25
+    save_on_top = True
+
+    @admin.display(description="Question")
+    def short_question(self, obj):
+        return obj.text[:80]
+
+    @admin.action(description="Send selected draft questions for review")
+    def send_to_review(self, request, queryset):
+        successful = 0
+        failed = 0
+
+        for question in queryset:
+            if question.status != "draft":
+                continue
+
+            question.status = "under_review"
+
             try:
                 question.full_clean()
-
-                question.status = "published"
                 question.save()
-
-                published_count += 1
-
+                successful += 1
             except ValidationError:
-                failed_count += 1
+                failed += 1
 
-        if published_count:
+        if successful:
             self.message_user(
                 request,
-                f"{published_count} question(s) published successfully.",
+                f"{successful} question(s) sent for review.",
                 messages.SUCCESS,
             )
 
-        if failed_count:
+        if failed:
             self.message_user(
                 request,
-                f"{failed_count} question(s) could not be published. "
-                "Their status was not changed. Review their details.",
-                messages.WARNING,
+                f"{failed} question(s) could not be sent for review. "
+                "Check that their required fields are complete.",
+                messages.ERROR,
             )
 
-    @admin.action(description="Return selected questions to draft")
+    @admin.action(description="Publish selected questions under review")
+    def publish_questions(self, request, queryset):
+        successful = 0
+        failed = 0
+
+        for question in queryset:
+            if question.status != "under_review":
+                continue
+
+            question.status = "published"
+
+            try:
+                question.full_clean()
+                question.save()
+                successful += 1
+            except ValidationError:
+                failed += 1
+
+        if successful:
+            self.message_user(
+                request,
+                f"{successful} question(s) published successfully.",
+                messages.SUCCESS,
+            )
+
+        if failed:
+            self.message_user(
+                request,
+                f"{failed} question(s) could not be published. "
+                "Check that each question has a valid explanation "
+                "and all required fields.",
+                messages.ERROR,
+            )
+
+    @admin.action(description="Return selected archived questions to draft")
     def return_to_draft(self, request, queryset):
-        count = queryset.update(status="draft")
+        updated = queryset.filter(status="archived").update(status="draft")
 
         self.message_user(
             request,
-            f"{count} question(s) returned to draft.",
+            f"{updated} archived question(s) returned to draft.",
             messages.SUCCESS,
         )
 
-    @admin.action(description="Archive selected questions")
+    @admin.action(description="Archive selected published questions")
     def archive_questions(self, request, queryset):
-        count = queryset.update(status="archived")
+        updated = queryset.filter(status="published").update(
+            status="archived"
+        )
 
         self.message_user(
             request,
-            f"{count} question(s) archived successfully.",
+            f"{updated} published question(s) archived.",
             messages.SUCCESS,
         )
 
 
 @admin.register(ExamYear)
 class ExamYearAdmin(admin.ModelAdmin):
-    list_display = ("year",)
+    list_display = ("id", "year")
+    search_fields = ("year",)
     ordering = ("-year",)
 
 
 @admin.register(StudentProfile)
 class StudentProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "exam_year")
+    list_display = ("id", "user", "exam_year")
     list_filter = ("exam_year",)
-    search_fields = ("user__username",)
+    search_fields = ("user__username", "user__email")
+    autocomplete_fields = ("user", "exam_year")
 
 
 @admin.register(PracticeAttempt)
 class PracticeAttemptAdmin(admin.ModelAdmin):
     list_display = (
+        "id",
         "student",
         "subtopic",
         "score",
@@ -221,11 +268,7 @@ class PracticeAttemptAdmin(admin.ModelAdmin):
         "submitted_at",
     )
 
-    list_filter = (
-        "subtopic",
-        "submitted_at",
-    )
-
+    list_filter = ("submitted_at",)
     search_fields = (
         "student__user__username",
         "subtopic__name",
@@ -239,3 +282,5 @@ class PracticeAttemptAdmin(admin.ModelAdmin):
         "score",
         "total_questions",
     )
+
+    ordering = ("-submitted_at",)

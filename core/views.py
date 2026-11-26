@@ -1,3 +1,4 @@
+
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -151,6 +152,14 @@ def student_dashboard(request):
         user=request.user,
     )
 
+    # --------------------------------------------------
+    # 1. Retrieve legacy subtopic practice attempts.
+    #
+    # These records also represent newer PracticeSessions
+    # that have a subtopic, because those sessions create
+    # a corresponding PracticeAttempt when submitted.
+    # --------------------------------------------------
+
     attempts = list(
         PracticeAttempt.objects.filter(
             student=profile,
@@ -165,7 +174,38 @@ def student_dashboard(request):
         .order_by("-submitted_at")
     )
 
-    completed_attempts = len(attempts)
+    # --------------------------------------------------
+    # 2. Retrieve submitted sessions WITHOUT a subtopic.
+    #
+    # These sessions do not create PracticeAttempt
+    # compatibility records, so they must be included
+    # directly from PracticeSession.
+    #
+    # Sessions with a subtopic are deliberately excluded
+    # here to prevent double-counting.
+    # --------------------------------------------------
+
+    sessions = list(
+        PracticeSession.objects.filter(
+            student=profile,
+            status="submitted",
+            subtopic__isnull=True,
+        )
+        .select_related(
+            "exam_year",
+            "subject",
+            "topic",
+            "topic__syllabus_version",
+            "topic__syllabus_version__subject",
+        )
+        .order_by("-submitted_at")
+    )
+
+    # --------------------------------------------------
+    # 3. Calculate overall performance.
+    # --------------------------------------------------
+
+    completed_attempts = len(attempts) + len(sessions)
 
     total_questions = sum(
         attempt.total_questions
@@ -177,6 +217,10 @@ def student_dashboard(request):
         for attempt in attempts
     )
 
+    for session in sessions:
+        total_questions += session.question_count
+        total_correct += session.score or 0
+
     accuracy = (
         round(
             (total_correct / total_questions) * 100,
@@ -186,18 +230,66 @@ def student_dashboard(request):
         else 0
     )
 
+    # --------------------------------------------------
+    # 4. Prepare subject, topic and history information.
+    # --------------------------------------------------
+
     subject_data = {}
     topic_data = {}
-
     practice_history = []
 
-    for attempt in attempts:
-        subject = (
-            attempt.subtopic.topic
-            .syllabus_version.subject
-        )
+    def add_performance(
+        subject,
+        topic,
+        score,
+        total,
+    ):
+        """
+        Add one completed activity to subject and topic
+        performance summaries.
+        """
 
+        if subject is not None:
+            if subject.id not in subject_data:
+                subject_data[subject.id] = {
+                    "name": subject.name,
+                    "attempts": 0,
+                    "questions": 0,
+                    "correct": 0,
+                }
+
+            subject_data[subject.id]["attempts"] += 1
+            subject_data[subject.id]["questions"] += total
+            subject_data[subject.id]["correct"] += score
+
+        if topic is not None:
+            if topic.id not in topic_data:
+                topic_data[topic.id] = {
+                    "name": topic.name,
+                    "subject": (
+                        subject.name
+                        if subject is not None
+                        else "Unknown"
+                    ),
+                    "attempts": 0,
+                    "questions": 0,
+                    "correct": 0,
+                }
+
+            topic_data[topic.id]["attempts"] += 1
+            topic_data[topic.id]["questions"] += total
+            topic_data[topic.id]["correct"] += score
+
+    # --------------------------------------------------
+    # 5. Process legacy attempts and compatibility records.
+    # --------------------------------------------------
+
+    for attempt in attempts:
         topic = attempt.subtopic.topic
+
+        subject = (
+            topic.syllabus_version.subject
+        )
 
         score = attempt.score or 0
         total = attempt.total_questions
@@ -211,33 +303,16 @@ def student_dashboard(request):
             else 0
         )
 
-        if subject.id not in subject_data:
-            subject_data[subject.id] = {
-                "name": subject.name,
-                "attempts": 0,
-                "questions": 0,
-                "correct": 0,
-            }
-
-        subject_data[subject.id]["attempts"] += 1
-        subject_data[subject.id]["questions"] += total
-        subject_data[subject.id]["correct"] += score
-
-        if topic.id not in topic_data:
-            topic_data[topic.id] = {
-                "name": topic.name,
-                "subject": subject.name,
-                "attempts": 0,
-                "questions": 0,
-                "correct": 0,
-            }
-
-        topic_data[topic.id]["attempts"] += 1
-        topic_data[topic.id]["questions"] += total
-        topic_data[topic.id]["correct"] += score
+        add_performance(
+            subject=subject,
+            topic=topic,
+            score=score,
+            total=total,
+        )
 
         practice_history.append(
             {
+                "type": "Subtopic Practice",
                 "subject": subject.name,
                 "topic": topic.name,
                 "subtopic": attempt.subtopic.name,
@@ -247,6 +322,64 @@ def student_dashboard(request):
                 "submitted_at": attempt.submitted_at,
             }
         )
+
+    # --------------------------------------------------
+    # 6. Process sessions without a subtopic.
+    # --------------------------------------------------
+
+    for session in sessions:
+        topic = session.topic
+
+        # Prefer the subject stored directly on the session.
+        # If it is absent, derive it from the selected topic.
+        subject = session.subject
+
+        if subject is None and topic is not None:
+            subject = topic.syllabus_version.subject
+
+        score = session.score or 0
+        total = session.question_count
+
+        session_accuracy = (
+            round(
+                (score / total) * 100,
+                1,
+            )
+            if total > 0
+            else 0
+        )
+
+        add_performance(
+            subject=subject,
+            topic=topic,
+            score=score,
+            total=total,
+        )
+
+        practice_history.append(
+            {
+                "type": session.get_mode_display(),
+                "subject": (
+                    subject.name
+                    if subject is not None
+                    else "General Practice"
+                ),
+                "topic": (
+                    topic.name
+                    if topic is not None
+                    else "—"
+                ),
+                "subtopic": "—",
+                "score": score,
+                "total_questions": total,
+                "accuracy": session_accuracy,
+                "submitted_at": session.submitted_at,
+            }
+        )
+
+    # --------------------------------------------------
+    # 7. Calculate subject performance percentages.
+    # --------------------------------------------------
 
     subject_performance = []
 
@@ -262,6 +395,10 @@ def student_dashboard(request):
 
         subject_performance.append(data)
 
+    # --------------------------------------------------
+    # 8. Calculate topic performance percentages.
+    # --------------------------------------------------
+
     topic_performance = []
 
     for data in topic_data.values():
@@ -276,6 +413,7 @@ def student_dashboard(request):
 
         topic_performance.append(data)
 
+    # Highest accuracy first.
     subject_performance.sort(
         key=lambda item: item["accuracy"],
         reverse=True,
@@ -283,6 +421,12 @@ def student_dashboard(request):
 
     topic_performance.sort(
         key=lambda item: item["accuracy"],
+        reverse=True,
+    )
+
+    # Newest activity first.
+    practice_history.sort(
+        key=lambda item: item["submitted_at"],
         reverse=True,
     )
 
