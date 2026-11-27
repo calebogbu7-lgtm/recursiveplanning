@@ -11,6 +11,7 @@ from .views import (
     student_dashboard,
     student_login,
     student_logout,
+    submit_practice_session,
     subject_detail,
     subtopic_detail,
     topic_detail,
@@ -30,16 +31,19 @@ urlpatterns = [
         register,
         name="register",
     ),
+
     path(
         "login/",
         student_login,
         name="student_login",
     ),
+
     path(
         "logout/",
         student_logout,
         name="student_logout",
     ),
+
     path(
         "dashboard/",
         student_dashboard,
@@ -63,6 +67,12 @@ urlpatterns = [
         "practice/session/<int:session_id>/question/<int:position>/",
         practice_session_question,
         name="practice_session_question",
+    ),
+
+    path(
+        "practice/session/<int:session_id>/submit/",
+        submit_practice_session,
+        name="submit_practice_session",
     ),
 
     path(

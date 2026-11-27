@@ -1,4 +1,3 @@
-
 {% extends "core/base.html" %}
 
 {% block title %}
@@ -14,6 +13,7 @@
 <div class="practice-session">
 
     <div class="session-header">
+
         <div>
             {% if session.mode == "normal_exam" %}
                 <h1>Normal Exam</h1>
@@ -30,57 +30,26 @@
                 <strong id="timer">--:--</strong>
             </div>
         {% endif %}
+
     </div>
 
+
     <div class="session-info">
+
         <span>
             Question {{ position }} of {{ total_questions }}
         </span>
 
         <span>
-            Unanswered:
-            <strong id="unanswered-count">
-                {{ unanswered_count }}
+            Answered:
+            <strong>
+                {{ answered_count }}
             </strong>
             / {{ total_questions }}
         </span>
+
     </div>
 
-    {% if show_submit_confirmation %}
-        <div class="submit-confirmation">
-            <h3>Submit this session?</h3>
-
-            <p>
-                You still have
-                <strong>{{ unanswered_count }}</strong>
-                unanswered question{{ unanswered_count|pluralize }}.
-            </p>
-
-            <p>
-                Unanswered questions will be marked incorrect.
-            </p>
-
-            <form method="post">
-                {% csrf_token %}
-
-                <input
-                    type="hidden"
-                    name="action"
-                    value="confirm_submit"
-                >
-
-                <button type="submit">
-                    Yes, Submit
-                </button>
-
-                <a
-                    href="{% url 'practice_session_question' session_id=session.id position=position %}"
-                >
-                    Continue
-                </a>
-            </form>
-        </div>
-    {% endif %}
 
     <div class="question-card">
 
@@ -88,84 +57,104 @@
             Question {{ position }}
         </div>
 
+
         <div class="question-text">
-            {{ current.question.text|linebreaks }}
+            {{ question.text|linebreaks }}
         </div>
 
-        <form method="post" id="question-form">
+
+        <form
+            method="post"
+            id="question-form"
+        >
+
             {% csrf_token %}
+
 
             <div class="options">
 
                 <label class="option">
+
                     <input
                         type="radio"
-                        name="answer"
+                        name="selected_option"
                         value="A"
-                        {% if current.selected_option == "A" %}
+                        {% if session_question.selected_option == "A" %}
                             checked
                         {% endif %}
                     >
 
                     <span>
                         <strong>A.</strong>
-                        {{ current.question.option_a }}
+                        {{ question.option_a }}
                     </span>
+
                 </label>
 
+
                 <label class="option">
+
                     <input
                         type="radio"
-                        name="answer"
+                        name="selected_option"
                         value="B"
-                        {% if current.selected_option == "B" %}
+                        {% if session_question.selected_option == "B" %}
                             checked
                         {% endif %}
                     >
 
                     <span>
                         <strong>B.</strong>
-                        {{ current.question.option_b }}
+                        {{ question.option_b }}
                     </span>
+
                 </label>
 
+
                 <label class="option">
+
                     <input
                         type="radio"
-                        name="answer"
+                        name="selected_option"
                         value="C"
-                        {% if current.selected_option == "C" %}
+                        {% if session_question.selected_option == "C" %}
                             checked
                         {% endif %}
                     >
 
                     <span>
                         <strong>C.</strong>
-                        {{ current.question.option_c }}
+                        {{ question.option_c }}
                     </span>
+
                 </label>
 
+
                 <label class="option">
+
                     <input
                         type="radio"
-                        name="answer"
+                        name="selected_option"
                         value="D"
-                        {% if current.selected_option == "D" %}
+                        {% if session_question.selected_option == "D" %}
                             checked
                         {% endif %}
                     >
 
                     <span>
                         <strong>D.</strong>
-                        {{ current.question.option_d }}
+                        {{ question.option_d }}
                     </span>
+
                 </label>
 
             </div>
 
+
             <div class="session-actions">
 
-                {% if position > 1 %}
+                {% if not is_first_question %}
+
                     <button
                         type="submit"
                         name="action"
@@ -173,9 +162,16 @@
                     >
                         Previous
                     </button>
+
+                {% else %}
+
+                    <span></span>
+
                 {% endif %}
 
-                {% if position < total_questions %}
+
+                {% if not is_last_question %}
+
                     <button
                         type="submit"
                         name="action"
@@ -183,9 +179,9 @@
                     >
                         Next
                     </button>
-                {% endif %}
 
-                {% if position == total_questions %}
+                {% else %}
+
                     <button
                         type="submit"
                         name="action"
@@ -194,9 +190,11 @@
                     >
                         Submit
                     </button>
+
                 {% endif %}
 
             </div>
+
         </form>
 
     </div>
@@ -429,36 +427,6 @@
     border: 1px solid #ccc;
     border-radius: 6px;
     cursor: pointer;
-}
-
-
-.submit-confirmation {
-    margin-bottom: 20px;
-    padding: 18px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background: #fafafa;
-}
-
-
-.submit-confirmation h3 {
-    margin-top: 0;
-}
-
-
-.submit-confirmation form {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-
-.submit-confirmation button,
-.submit-confirmation a {
-    padding: 9px 15px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    text-decoration: none;
 }
 
 

@@ -147,7 +147,7 @@ class PracticeSelectionForm(forms.Form):
     )
 
     number_of_questions = forms.IntegerField(
-        required=False,
+        required=True,
         min_value=1,
         label="Number of questions",
     )

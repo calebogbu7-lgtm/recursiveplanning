@@ -46,6 +46,10 @@ def select_questions(
 
     Selecting 'all' for source_type or difficulty
     means no restriction is applied for that setting.
+
+    A question count is required. The selector will never
+    automatically return all available questions when the
+    count is missing.
     """
 
     # Validate syllabus year.
@@ -95,16 +99,20 @@ def select_questions(
             "order must be sequential or random."
         )
 
-    # Validate question count.
-    if number_of_questions is not None:
-        if (
-            isinstance(number_of_questions, bool)
-            or not isinstance(number_of_questions, int)
-            or number_of_questions < 1
-        ):
-            raise ValueError(
-                "number_of_questions must be a positive integer."
-            )
+    # Question count is required.
+    if number_of_questions is None:
+        raise ValueError(
+            "Please enter the number of questions."
+        )
+
+    if (
+        isinstance(number_of_questions, bool)
+        or not isinstance(number_of_questions, int)
+        or number_of_questions < 1
+    ):
+        raise ValueError(
+            "number_of_questions must be a positive integer."
+        )
 
     # Start with published questions only.
     questions = Question.objects.filter(
@@ -163,20 +171,6 @@ def select_questions(
 
     if available_count == 0:
         return []
-
-    # Return every eligible question when no count is specified.
-    if number_of_questions is None:
-
-        if order == "random":
-            selected_questions = list(questions)
-
-            random.shuffle(selected_questions)
-
-            return selected_questions
-
-        return list(
-            questions.order_by("id")
-        )
 
     # Prevent requesting more questions than are available.
     if number_of_questions > available_count:

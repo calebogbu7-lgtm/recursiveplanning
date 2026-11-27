@@ -1,188 +1,538 @@
 {% extends "core/base.html" %}
 
-{% block title %}
-Student Dashboard
-{% endblock %}
+{% block title %}Student Dashboard{% endblock %}
 
 {% block content %}
 
-<h2>
-    Welcome, {{ request.user.username }}!
-</h2>
+<style>
+    .dashboard {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px 0 50px;
+    }
 
-<h3>Your Account Information</h3>
+    .dashboard-hero {
+        padding: 28px;
+        border: 1px solid #ddd;
+        border-radius: 14px;
+        margin-bottom: 24px;
+    }
 
-<p>
-    <strong>Username:</strong>
-    {{ request.user.username }}
-</p>
+    .dashboard-hero h2 {
+        margin: 0 0 8px;
+        font-size: 30px;
+    }
 
-<p>
-    <strong>JAMB Exam Year:</strong>
-    {{ profile.exam_year.year }}
-</p>
+    .dashboard-hero p {
+        margin: 6px 0;
+    }
 
-<p>
-    <a href="{% url 'practice' %}">
-        Start Practising
-    </a>
-</p>
+    .dashboard-actions {
+        margin-top: 20px;
+    }
 
-<hr>
+    .dashboard-actions a {
+        display: inline-block;
+        padding: 11px 18px;
+        border-radius: 8px;
+        text-decoration: none;
+        border: 1px solid #222;
+    }
 
-<h3>Overall Performance</h3>
+    .section {
+        margin-top: 28px;
+    }
 
-<div>
-    <h4>Completed Attempts</h4>
-    <p>{{ completed_attempts }}</p>
+    .section h3 {
+        margin: 0 0 14px;
+    }
+
+    .metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 14px;
+    }
+
+    .metric-card {
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        padding: 18px;
+    }
+
+    .metric-label {
+        font-size: 14px;
+        margin-bottom: 8px;
+    }
+
+    .metric-value {
+        font-size: 28px;
+        font-weight: bold;
+    }
+
+    .table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        background: #fff;
+    }
+
+    table {
+        width: 100%;
+        min-width: 760px;
+        border-collapse: collapse;
+    }
+
+    th,
+    td {
+        padding: 13px 14px;
+        text-align: left;
+        border-right: 1px solid #e1e1e1;
+        border-bottom: 1px solid #e1e1e1;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    th:last-child,
+    td:last-child {
+        border-right: none;
+    }
+
+    thead th {
+        font-weight: 700;
+        background: #f5f5f5;
+        border-bottom: 2px solid #d5d5d5;
+    }
+
+    tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    tbody tr:hover {
+        background: #fafafa;
+    }
+
+    .history-table {
+        min-width: 1050px;
+    }
+
+    .history-table th,
+    .history-table td {
+        text-align: center;
+    }
+
+    .history-table th:nth-child(2),
+    .history-table th:nth-child(3),
+    .history-table th:nth-child(4),
+    .history-table td:nth-child(2),
+    .history-table td:nth-child(3),
+    .history-table td:nth-child(4) {
+        text-align: left;
+    }
+
+    .history-table th:first-child,
+    .history-table td:first-child {
+        text-align: left;
+    }
+
+    .score-cell {
+        font-weight: 700;
+    }
+
+    .accuracy-cell {
+        font-weight: 700;
+    }
+
+    .completed-cell {
+        text-align: left !important;
+    }
+
+    .empty-state {
+        border: 1px dashed #bbb;
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .account-card {
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    @media (max-width: 600px) {
+        .dashboard {
+            padding: 15px 0 40px;
+        }
+
+        .dashboard-hero {
+            padding: 20px;
+        }
+
+        .dashboard-hero h2 {
+            font-size: 24px;
+        }
+
+        .table-wrapper {
+            border-radius: 10px;
+        }
+
+        th,
+        td {
+            padding: 11px 12px;
+        }
+    }
+</style>
+
+<div class="dashboard">
+
+    <!-- Welcome -->
+    <section class="dashboard-hero">
+
+        <h2>
+            Welcome, {{ request.user.username }}!
+        </h2>
+
+        <p>
+            This is your performance centre. Track your practice,
+            identify weak areas, and keep improving.
+        </p>
+
+        <div class="dashboard-actions">
+            <a href="{% url 'practice' %}">
+                Start Practising
+            </a>
+        </div>
+
+    </section>
+
+
+    <!-- Account Information -->
+    <section class="section">
+
+        <h3>Account Information</h3>
+
+        <div class="account-card">
+
+            <p>
+                <strong>Username:</strong>
+                {{ request.user.username }}
+            </p>
+
+            <p>
+                <strong>JAMB Exam Year:</strong>
+
+                {% if profile.exam_year %}
+                    {{ profile.exam_year.year }}
+                {% else %}
+                    Not selected
+                {% endif %}
+            </p>
+
+        </div>
+
+    </section>
+
+
+    <!-- Overall Performance -->
+    <section class="section">
+
+        <h3>Overall Performance</h3>
+
+        <div class="metrics">
+
+            <div class="metric-card">
+                <div class="metric-label">
+                    Completed Attempts
+                </div>
+
+                <div class="metric-value">
+                    {{ completed_attempts }}
+                </div>
+            </div>
+
+
+            <div class="metric-card">
+                <div class="metric-label">
+                    Questions Practised
+                </div>
+
+                <div class="metric-value">
+                    {{ total_questions }}
+                </div>
+            </div>
+
+
+            <div class="metric-card">
+                <div class="metric-label">
+                    Correct Answers
+                </div>
+
+                <div class="metric-value">
+                    {{ total_correct }}
+                </div>
+            </div>
+
+
+            <div class="metric-card">
+                <div class="metric-label">
+                    Incorrect Answers
+                </div>
+
+                <div class="metric-value">
+                    {{ total_incorrect }}
+                </div>
+            </div>
+
+
+            <div class="metric-card">
+                <div class="metric-label">
+                    Unanswered
+                </div>
+
+                <div class="metric-value">
+                    {{ total_unanswered }}
+                </div>
+            </div>
+
+
+            <div class="metric-card">
+                <div class="metric-label">
+                    Overall Accuracy
+                </div>
+
+                <div class="metric-value">
+                    {{ accuracy }}%
+                </div>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Subject Performance -->
+    <section class="section">
+
+        <h3>Subject Performance</h3>
+
+        {% if subject_performance %}
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Attempts</th>
+                            <th>Questions</th>
+                            <th>Correct</th>
+                            <th>Incorrect</th>
+                            <th>Unanswered</th>
+                            <th>Accuracy</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for item in subject_performance %}
+
+                            <tr>
+                                <td>{{ item.name }}</td>
+                                <td>{{ item.attempts }}</td>
+                                <td>{{ item.questions }}</td>
+                                <td>{{ item.correct }}</td>
+                                <td>{{ item.incorrect }}</td>
+                                <td>{{ item.unanswered }}</td>
+                                <td>{{ item.accuracy }}%</td>
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="empty-state">
+                <p>
+                    You do not have enough completed practice data
+                    to display subject performance yet.
+                </p>
+            </div>
+
+        {% endif %}
+
+    </section>
+
+
+    <!-- Topic Performance -->
+    <section class="section">
+
+        <h3>Topic Performance</h3>
+
+        {% if topic_performance %}
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Topic</th>
+                            <th>Attempts</th>
+                            <th>Questions</th>
+                            <th>Correct</th>
+                            <th>Incorrect</th>
+                            <th>Unanswered</th>
+                            <th>Accuracy</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for item in topic_performance %}
+
+                            <tr>
+                                <td>{{ item.subject }}</td>
+                                <td>{{ item.name }}</td>
+                                <td>{{ item.attempts }}</td>
+                                <td>{{ item.questions }}</td>
+                                <td>{{ item.correct }}</td>
+                                <td>{{ item.incorrect }}</td>
+                                <td>{{ item.unanswered }}</td>
+                                <td>{{ item.accuracy }}%</td>
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="empty-state">
+                <p>
+                    Complete some practice sessions to start seeing
+                    topic-level performance.
+                </p>
+            </div>
+
+        {% endif %}
+
+    </section>
+
+
+    <!-- Practice History -->
+    <section class="section">
+
+        <h3>Practice History</h3>
+
+        {% if practice_history %}
+
+            <div class="table-wrapper">
+
+                <table class="history-table">
+
+                    <thead>
+
+                        <tr>
+                            <th>Type</th>
+                            <th>Subject</th>
+                            <th>Topic</th>
+                            <th>Subtopic</th>
+                            <th>Score</th>
+                            <th>Incorrect</th>
+                            <th>Unanswered</th>
+                            <th>Accuracy</th>
+                            <th>Completed</th>
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+                        {% for item in practice_history %}
+
+                            <tr>
+
+                                <td>
+                                    {{ item.type }}
+                                </td>
+
+                                <td>
+                                    {{ item.subject }}
+                                </td>
+
+                                <td>
+                                    {{ item.topic }}
+                                </td>
+
+                                <td>
+                                    {{ item.subtopic }}
+                                </td>
+
+                                <td class="score-cell">
+                                    {{ item.score }}/{{ item.total_questions }}
+                                </td>
+
+                                <td>
+                                    {{ item.incorrect }}
+                                </td>
+
+                                <td>
+                                    {{ item.unanswered }}
+                                </td>
+
+                                <td class="accuracy-cell">
+
+                                    {% if item.total_questions %}
+                                        {{ item.accuracy }}%
+                                    {% else %}
+                                        —
+                                    {% endif %}
+
+                                </td>
+
+                                <td class="completed-cell">
+                                    {% if item.completed %}
+                                        {{ item.completed|date:"d M Y, h:i A" }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="empty-state">
+                <p>
+                    You have not completed any practice yet.
+                    Your practice history will appear here.
+                </p>
+            </div>
+
+        {% endif %}
+
+    </section>
+
 </div>
-
-<div>
-    <h4>Questions Practised</h4>
-    <p>{{ total_questions }}</p>
-</div>
-
-<div>
-    <h4>Correct Answers</h4>
-    <p>{{ total_correct }}</p>
-</div>
-
-<div>
-    <h4>Overall Accuracy</h4>
-    <p>{{ accuracy }}%</p>
-</div>
-
-<hr>
-
-<h3>Subject Performance</h3>
-
-{% if subject_performance %}
-
-    <table border="1" cellpadding="8">
-        <thead>
-            <tr>
-                <th>Subject</th>
-                <th>Attempts</th>
-                <th>Questions</th>
-                <th>Correct</th>
-                <th>Accuracy</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            {% for subject in subject_performance %}
-                <tr>
-                    <td>{{ subject.name }}</td>
-                    <td>{{ subject.attempts }}</td>
-                    <td>{{ subject.questions }}</td>
-                    <td>{{ subject.correct }}</td>
-                    <td>{{ subject.accuracy }}%</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-{% else %}
-
-    <p>
-        Your subject performance will appear after you complete practice sessions.
-    </p>
-
-{% endif %}
-
-<hr>
-
-<h3>Topic Performance</h3>
-
-{% if topic_performance %}
-
-    <table border="1" cellpadding="8">
-        <thead>
-            <tr>
-                <th>Subject</th>
-                <th>Topic</th>
-                <th>Attempts</th>
-                <th>Questions</th>
-                <th>Correct</th>
-                <th>Accuracy</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            {% for topic in topic_performance %}
-                <tr>
-                    <td>{{ topic.subject }}</td>
-                    <td>{{ topic.name }}</td>
-                    <td>{{ topic.attempts }}</td>
-                    <td>{{ topic.questions }}</td>
-                    <td>{{ topic.correct }}</td>
-                    <td>{{ topic.accuracy }}%</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-{% else %}
-
-    <p>
-        Your topic performance will appear here after you complete practice sessions.
-    </p>
-
-{% endif %}
-
-<hr>
-
-<h3>Practice History</h3>
-
-{% if practice_history %}
-
-    <table border="1" cellpadding="8">
-
-        <thead>
-            <tr>
-                <th>Subject</th>
-                <th>Topic</th>
-                <th>Subtopic</th>
-                <th>Score</th>
-                <th>Accuracy</th>
-                <th>Completed</th>
-            </tr>
-        </thead>
-
-        <tbody>
-
-            {% for attempt in practice_history %}
-
-                <tr>
-                    <td>{{ attempt.subject }}</td>
-                    <td>{{ attempt.topic }}</td>
-                    <td>{{ attempt.subtopic }}</td>
-
-                    <td>
-                        {{ attempt.score }}/{{ attempt.total_questions }}
-                    </td>
-
-                    <td>
-                        {{ attempt.accuracy }}%
-                    </td>
-
-                    <td>
-                        {{ attempt.submitted_at|date:"M d, Y - H:i" }}
-                    </td>
-                </tr>
-
-            {% endfor %}
-
-        </tbody>
-
-    </table>
-
-{% else %}
-
-    <p>
-        You have not completed any practice sessions yet.
-    </p>
-
-{% endif %}
 
 {% endblock %}
