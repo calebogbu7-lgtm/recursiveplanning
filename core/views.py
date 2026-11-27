@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
@@ -73,26 +74,35 @@ def student_login(request):
         return redirect("student_dashboard")
 
     if request.method == "POST":
-        username = request.POST.get("username", "").strip()
+        identifier = request.POST.get("identifier", "").strip()
         password = request.POST.get("password", "")
 
-        user = authenticate(
-            request,
-            username=username,
-            password=password,
-        )
+        # Allow login with either username or email.
+        user = None
+
+        if "@" in identifier:
+            matching_users = User.objects.filter(email__iexact=identifier)
+
+            if matching_users.count() == 1:
+                user = authenticate(
+                    request,
+                    username=matching_users.first().username,
+                    password=password,
+                )
+        else:
+            user = authenticate(
+                request,
+                username=identifier,
+                password=password,
+            )
 
         if user is not None:
             login(request, user)
             return redirect("student_dashboard")
 
-        messages.error(
-            request,
-            "Invalid username or password.",
-        )
+        messages.error(request, "Invalid username/email or password.")
 
     return render(request, "core/login.html")
-
 
 # =========================================================
 # STUDENT LOGOUT
